@@ -10,6 +10,7 @@
 #include "Tetromino/Block_Z.h"
 #include "Position.h"
 #include "Color.h"
+#include "input/Action.h"
 #include <vector>
 
 // Game class declaration
@@ -17,9 +18,10 @@ class Game{
 public:
     // Constructor for the Game class
     Game();
+    virtual ~Game() = default;
     
     // Board for the game grid
-    Board game_grid = Board();
+    Board game_grid;
 
     // Function to generate a random Tetromino block
     Tetromino random_block();
@@ -30,8 +32,20 @@ public:
     // Function to display the game
     void display();
 
-    // Function to handle user input
+    // Function to display the game with the board's top-left corner at (x, y)
+    void display(int x, int y);
+
+    // Function to handle keyboard input directly (kept for compatibility)
     void handle_input();
+
+    // Function to apply one player action (keyboard, mouse or gesture)
+    void apply(Action action);
+
+    // Function to drop the current block straight to the bottom
+    void hard_drop();
+
+    // Function to get where the current block would land (ghost piece)
+    std::vector<Position> ghost_position();
 
     // Function to move the current block to the left
     void move_left();
