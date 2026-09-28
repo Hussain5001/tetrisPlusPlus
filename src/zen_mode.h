@@ -2,11 +2,28 @@
 
 #include "game.h" // including the header file for the base Game class
 
+// Choices made on the Zen setup screen
+struct ZenSettings {
+    int start_level = 1;       // 1-10, sets the starting speed
+    int lines_per_level = 5;   // how many lines until the next level (pace)
+};
+
 // ZenMode class inheriting from Game class
 class ZenMode: public Game{
 public:
     // Constructor
     ZenMode();
+    explicit ZenMode(ZenSettings settings);
+
+    // Current level (speeds up every settings.lines_per_level lines)
+    int level;
+    ZenSettings settings;
+
+    // Seconds between rows falling at a given level (1 = slowest)
+    static double drop_interval_for(int level);
+
+    // Score multiplier at a given level
+    static double multiplier_for(int level);
 
     // Member variables
     int total_lines_cleared; // variable to keep track of the total lines cleared
@@ -25,6 +42,9 @@ public:
 
     // Function to manage the falling of blocks
     void fall_block();
+
+    // Function to go up a level for every settings.lines_per_level lines
+    void update_level();
 
     // Function to save the game state to a JSON file
     void save_game_state();

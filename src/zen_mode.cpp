@@ -6,10 +6,33 @@
 
 using json = nlohmann::json;
 // Constructor for ZenMode class, inheriting from Game class
-ZenMode::ZenMode():Game() {
+ZenMode::ZenMode():ZenMode(ZenSettings()) {}
+
+ZenMode::ZenMode(ZenSettings chosen):Game(), settings(chosen) {
     total_lines_cleared=0;
     lines_counter=0;
-    score_multiplier=1;
+    lines_cleared=0;
+    if (settings.start_level < 1) settings.start_level = 1;
+    if (settings.lines_per_level < 1) settings.lines_per_level = 1;
+    level=settings.start_level;
+    drop_interval=drop_interval_for(level);
+    score_multiplier=multiplier_for(level);
+}
+
+// Seconds between rows falling: levels 1-10 follow a table, after that the
+// game keeps speeding up slowly until 0.05 seconds
+double ZenMode::drop_interval_for(int level) {
+    static const double table[] = {0.80, 0.72, 0.63, 0.55, 0.48,
+                                   0.38, 0.30, 0.22, 0.15, 0.10};
+    if (level < 1) level = 1;
+    if (level <= 10) return table[level - 1];
+    double interval = 0.10 - 0.005 * (level - 10);
+    return interval < 0.05 ? 0.05 : interval;
+}
+
+// Higher levels are worth more: x1 at level 1, +0.5 per level
+double ZenMode::multiplier_for(int level) {
+    return 1 + 0.5 * (level - 1);
 }
 
 // Function to check if the game is finished
@@ -31,7 +54,7 @@ void ZenMode::block_attach() {
     game_over = is_game_finished();
     lines_cleared = game_grid.row_clearance();
     total_lines_cleared += lines_cleared;
-    score += get_score();
+    score += get_score() * score_multiplier;
     lines_cleared = 0;
     std::cout << "score: " << score << std::endl;
 }
@@ -45,21 +68,21 @@ double ZenMode::get_score() {
 }
 // Function to make the block fall
 void ZenMode::fall_block() {
-    if (total_lines_cleared - lines_counter >= 5) {
-        lines_counter = total_lines_cleared;
-        score_multiplier += 0.5;
-        if (drop_interval > 0.09) {
-            drop_interval -= 0.08;
-        }
-        std::cout << "speed increased" << std::endl;
+    update_level();
+    // Every row the block falls on its own is worth the multiplier
+    if (tick(GetTime()) && !game_over) {
+        score += score_multiplier;
     }
-    double current_t = GetTime();
-    if (current_t - fall_start >= drop_interval) {
-        move_down();
-        if(!game_over){
-            score += score_multiplier;
-        }
-        fall_start = current_t;
+}
+
+// Function to go up a level for every settings.lines_per_level lines
+void ZenMode::update_level() {
+    while (total_lines_cleared - lines_counter >= settings.lines_per_level) {
+        lines_counter += settings.lines_per_level;
+        level++;
+        drop_interval = drop_interval_for(level);
+        score_multiplier = multiplier_for(level);
+        std::cout << "level " << level << std::endl;
     }
 }
 // Function to save the current game state to a JSON file
@@ -81,6 +104,11 @@ void ZenMode::save_game_state() {
         game_state["score"] = score;
         game_state["score_multiplier"]=score_multiplier;
         game_state["drop_interval"]=drop_interval;
+        game_state["level"]=level;
+        game_state["start_level"]=settings.start_level;
+        game_state["lines_per_level"]=settings.lines_per_level;
+        game_state["total_lines_cleared"]=total_lines_cleared;
+        game_state["lines_counter"]=lines_counter;
 
         std::ofstream file("game_state.json");
         if (!file.is_open()) {
@@ -130,6 +158,19 @@ void ZenMode::load_game_state() {
         if (game_state.contains("drop_interval") && game_state["drop_interval"].is_number_float()) {
             drop_interval = game_state["drop_interval"];
         }
+
+        // Level data (saves from the original game don't have it)
+        auto read_int = [&](const char* key, int& target) {
+            if (game_state.contains(key) && game_state[key].is_number_integer()) {
+                target = game_state[key];
+            }
+        };
+        read_int("level", level);
+        read_int("start_level", settings.start_level);
+        read_int("lines_per_level", settings.lines_per_level);
+        read_int("total_lines_cleared", total_lines_cleared);
+        read_int("lines_counter", lines_counter);
+        if (settings.lines_per_level < 1) settings.lines_per_level = 5;
 
     } catch (const std::exception &e) {
         std::cerr << "An error occurred: " << e.what() << std::endl;

@@ -3,6 +3,7 @@
 
 #include "App.h"
 #include "UnitTestBoard.h"
+#include "UnitTestExtras.h"
 #include "UnitTestModes.h"
 #include "UnitTestTetromino.h"
 
@@ -33,6 +34,9 @@ int main(int argc, char** argv) {
 
     UnitTestModes test_modes;
     test_modes.run_test_modes();
+
+    UnitTestExtras test_extras;
+    test_extras.run_test_extras();
     return 0;
   }
 
