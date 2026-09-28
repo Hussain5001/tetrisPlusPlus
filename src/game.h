@@ -60,11 +60,17 @@ public:
     // Function to move the current block down
     void move_down();
 
-    // Function to rotate the current block and check boundaries
-    void rotate_and_bound_chk();
+    // Function to rotate the current block and check boundaries. If the
+    // rotated block doesn't fit, it is nudged sideways/up (a "wall kick").
+    // Returns true if the block rotated.
+    bool rotate_and_bound_chk();
 
     // Function to make the current block fall
     virtual void fall_block();
+
+    // Function to apply gravity and the lock delay at time `now` (seconds).
+    // Returns true if the block moved down one row.
+    bool tick(double now);
 
     // Function to check for collisions
     bool is_collision();
@@ -75,6 +81,16 @@ public:
     double score;
     bool game_over;
     int lines_cleared;
+
+    // Seconds a landed block can still be moved before it locks. 0 locks
+    // immediately (the original behaviour); the App uses 0.5.
+    double lock_delay = 0;
+
+    // Increases every time a new block spawns
+    int piece_id = 0;
+
+    // Points for each row moved with soft drop (the down key)
+    double soft_drop_points = 1;
 
     // Function to attach the block to the game grid
     virtual void block_attach() = 0;
@@ -94,4 +110,17 @@ public:
 
     // Function to check if the block is within the game grid
     bool is_within_grid();
+
+    // Lock delay state
+    bool grounded = false;
+    double lock_start = 0;
+    double last_tick = 0;
+    int lock_resets = 0;
+    static const int kMaxLockResets = 15;
+
+    // Function to restart the lock delay after the player moves a landed block
+    void on_player_move();
+
+    // Function to check whether the current block could fall one row
+    bool can_fall();
 };

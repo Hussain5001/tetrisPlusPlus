@@ -14,3 +14,8 @@ cmake-build-*/
 __pycache__/
 .venv/
 gesture/models/
+
+# player data
+scores.json
+profile.json
+test_scores.json

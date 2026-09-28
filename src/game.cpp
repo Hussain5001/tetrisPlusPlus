@@ -34,6 +34,11 @@ Tetromino Game::random_block() {
   Tetromino blk =block_list[block_index];
   block_list.erase(block_list.begin()+block_index);
 
+  // A new block starts with a fresh lock delay
+  piece_id++;
+  grounded = false;
+  lock_resets = 0;
+
   // Each block type keeps its own colour (set in the Block_* constructors)
   return (blk);
 }
@@ -75,7 +80,15 @@ void Game::apply(Action action) {
   switch (action) {
     case Action::Left: move_left(); break;
     case Action::Right: move_right(); break;
-    case Action::SoftDrop: move_down(); break;
+    case Action::SoftDrop: {
+      int id = piece_id;
+      int row = current_block.get_row_offset();
+      move_down();
+      if (piece_id == id && current_block.get_row_offset() > row) {
+        score += soft_drop_points;
+      }
+      break;
+    }
     case Action::Rotate: rotate_and_bound_chk(); break;
     case Action::HardDrop: hard_drop(); break;
     default: break;  // Pause/Confirm/Back are handled by the App
@@ -137,6 +150,8 @@ void Game::move_left() {
     current_block.move(0, -1);
     if (!is_within_grid()||is_collision()) {
       current_block.move(0, 1);
+    } else {
+      on_player_move();
     }
   }
 }
@@ -144,8 +159,10 @@ void Game::move_left() {
 void Game::move_right() {
   if(!game_over){
     current_block.move(0, 1);
-  if (!is_within_grid()||is_collision()) {
-    current_block.move(0, -1);
+    if (!is_within_grid()||is_collision()) {
+      current_block.move(0, -1);
+    } else {
+      on_player_move();
     }
   }
 }
@@ -170,24 +187,85 @@ bool Game::is_within_grid() {
   return true;
 }
 // Function to rotate the current block and check for collisions
-void Game::rotate_and_bound_chk() {
-  if(!game_over){
-    current_block.rotate();
-    if (!is_within_grid()||is_collision()) {
-      current_block.current_rotation -= 1;
-      if (current_block.current_rotation == -1) {
-        current_block.current_rotation = (int)current_block.cells.size() - 1;
-      }
-    }
+bool Game::rotate_and_bound_chk() {
+  if(game_over){
+    return false;
   }
+  current_block.rotate();
+  if (is_within_grid() && !is_collision()) {
+    on_player_move();
+    return true;
+  }
+  // Wall kicks: try nudging the rotated block left/right, then up
+  const int kicks[][2] = {{0, -1}, {0, 1}, {0, -2}, {0, 2}, {-1, 0}};
+  for (const auto& kick : kicks) {
+    current_block.move(kick[0], kick[1]);
+    if (is_within_grid() && !is_collision()) {
+      on_player_move();
+      return true;
+    }
+    current_block.move(-kick[0], -kick[1]);
+  }
+  // Nothing fits: undo the rotation
+  current_block.current_rotation -= 1;
+  if (current_block.current_rotation == -1) {
+    current_block.current_rotation = (int)current_block.cells.size() - 1;
+  }
+  return false;
 }
 // Function to make the current block fall
 void Game::fall_block() {
-    double current_t=GetTime();
-    if(current_t-fall_start>=drop_interval){
-        move_down();
-        fall_start=current_t;
+    tick(GetTime());
+}
+
+// Function to check whether the current block could fall one row
+bool Game::can_fall() {
+  current_block.move(1, 0);
+  bool fits = is_within_grid() && !is_collision();
+  current_block.move(-1, 0);
+  return fits;
+}
+
+// Function to restart the lock delay when a landed block is moved, so the
+// player can still slide it into place (limited to kMaxLockResets)
+void Game::on_player_move() {
+  if (grounded && lock_resets < kMaxLockResets) {
+    lock_resets++;
+    lock_start = last_tick;
+  }
+}
+
+// Function to apply gravity and the lock delay
+bool Game::tick(double now) {
+  last_tick = now;
+  if (game_over) {
+    return false;
+  }
+  if (grounded) {
+    if (can_fall()) {
+      grounded = false;  // slid off a ledge, keep falling
+    } else if (now - lock_start >= lock_delay) {
+      grounded = false;
+      block_attach();
+      fall_start = now;
+      return false;
     }
+  }
+  if (now - fall_start < drop_interval) {
+    return false;
+  }
+  fall_start = now;
+  if (can_fall()) {
+    current_block.move(1, 0);
+    return true;
+  }
+  if (lock_delay <= 0) {
+    block_attach();
+  } else if (!grounded) {
+    grounded = true;
+    lock_start = now;
+  }
+  return false;
 }
 
 // Function to check for collisions with other blocks

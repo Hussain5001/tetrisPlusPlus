@@ -26,14 +26,18 @@ sending UDP commands (see below) instead of fake key presses.
 
 | Path | What |
 |---|---|
-| `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()` |
+| `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()`, wall kicks, `tick(now)` gravity with optional `lock_delay`, `piece_id` |
+| `src/zen_mode.*` | `ZenSettings` (start level, lines per level), `level`, `drop_interval_for()`, `multiplier_for()`, `update_level()`, save/load incl. level data. Default `ZenMode()` = level 1, x1, 5 lines per level (the original tests rely on it) |
+| `src/HighScores.*`, `src/Profile.*` | `scores.json` (top 5 + last run per mode) and `profile.json` (Zen setup choices); both tolerate missing/broken files |
+| `src/Sound.*` | Beeps generated in code (`sound::play(Sfx::...)`); no-op without an audio device |
 | `src/zen_mode.*`, `time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The three modes (scoring, finish rules, Zen save/load to `game_state.json`); `TimeDependentMode` has `pause_timer()`/`resume_timer()` |
 | `src/board.*` | 20x10 grid (raw `int**`, not copyable), row clearing, drawing; records `last_cleared_rows`/`clear_events` for the flash effect |
 | `src/Tetromino/` | Base `Tetromino` + one class per piece; each constructor sets its fixed `color_id` (I=1 … Z=7) |
 | `src/Color.*` | Palette; `cell_color(id)` wraps ids > 7 (old saves used random ids up to 10) |
-| `src/App.*` | The one window and the scenes (MainMenu, ZenChoice, Playing, Paused, GameOver), HUD and overlays. It draws to an 800x700 render texture that is letterboxed into the resizable window; mouse coordinates are remapped with `SetMouseOffset`/`SetMouseScale` |
-| `src/ui/Draw.*` | Theme colours, bevelled `draw_cell`, `draw_ghost_cell`, the shared font (`assets/monogram.ttf`) and text helpers |
-| `src/ui/Widgets.*` | `ui::button` (immediate mode) and `ui::Menu` (keyboard, gesture and mouse navigation) |
+| `src/App.*` | The one window and the scenes (Boot, MainMenu, ZenSetup, Playing with countdown, Paused, GameOver), sidebar, effects (sliding block, sparks, trails, shake), sounds and high-score recording. It draws to an 800x700 render texture that is letterboxed into the resizable window; mouse coordinates are remapped with `SetMouseOffset`/`SetMouseScale` |
+| `src/ui/Draw.*` | Phosphor themes (`set_phosphor`, `theme()`, `block_color`), `draw_cell`/`draw_ghost_cell`/`draw_empty_cell`, block-letter logo, font and text helpers, `mouse_active()` |
+| `src/ui/Widgets.*` | `ui::text_button` and `ui::Menu` (terminal-style list with optional values; keyboard, gesture and mouse) |
+| `assets/shaders/crt.fs` | CRT post-process shader applied to the 800x700 render texture (`time`, `strength` uniforms) |
 | `src/input/` | `Action` enum, `InputManager` (keyboard with DAS 170 ms / ARR 50 ms + gestures), `GestureSource` (non-blocking UDP on 127.0.0.1:5005) |
 | `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. All thresholds are in `Config` |
 | `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
@@ -57,7 +61,10 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
   through `Action`, never through raw key checks in game logic.
 - `GestureSource.cpp` must not include `raylib.h`, because it clashes with `winsock2.h` on Windows.
 - Don't copy `Game`/`Board` objects (they own raw memory); `App` holds the game in a `unique_ptr`.
-- Keep `./build/Tetris --test` and the Python tests passing, and extend them when changing logic.
+- Keep `./build/Tetris --test` and the Python tests passing, and extend them when changing logic
+  (`src/UnitTestExtras.h` holds the tests for levels, kicks, lock delay and high scores).
+- Look: lowercase terminal text, colours only from `ui::theme()`; test screens headlessly and
+  check them with the CRT effect on.
 - The MediaPipe model (`gesture/models/`) is downloaded at runtime and git-ignored; don't commit it.
 
 ## Git
