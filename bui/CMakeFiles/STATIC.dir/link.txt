@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc libSTATIC.a CMakeFiles/STATIC.dir/src/Block_I.cpp.o CMakeFiles/STATIC.dir/src/Block_J.cpp.o CMakeFiles/STATIC.dir/src/Block_L.cpp.o CMakeFiles/STATIC.dir/src/Block_O.cpp.o CMakeFiles/STATIC.dir/src/Block_S.cpp.o CMakeFiles/STATIC.dir/src/Block_T.cpp.o CMakeFiles/STATIC.dir/src/Block_Z.cpp.o CMakeFiles/STATIC.dir/src/Tetromino.cpp.o CMakeFiles/STATIC.dir/src/board.cpp.o CMakeFiles/STATIC.dir/src/main.cpp.o CMakeFiles/STATIC.dir/src/raylib_test.cpp.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib libSTATIC.a
