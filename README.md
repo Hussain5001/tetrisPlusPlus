@@ -13,6 +13,33 @@ repository is left untouched; this one adds:
 |---|---|---|---|
 | ![menu](docs/screenshots/menu.png) | ![gameplay](docs/screenshots/gameplay.png) | ![pause](docs/screenshots/pause.png) | ![game over](docs/screenshots/gameover.png) |
 
+## Play on Windows
+
+**Easiest: download the ready-made game, no compilers needed.**
+
+1. Open the repo's [Actions → build](https://github.com/Hussain5001/tetrisPlusPlus/actions/workflows/build.yml)
+   page, click the newest green run, and download **TetrisPlusPlus-windows** under *Artifacts*.
+   Tagged versions also appear under *Releases*.
+2. Unzip it anywhere, for example your Desktop.
+3. Double-click **`play.bat`**. For keyboard-only play, double-click `Tetris.exe` instead.
+
+Hand control needs [Python 3.10–3.12](https://www.python.org/downloads/); tick "Add python.exe
+to PATH" when installing. On the first start, a minimised "Tetris++ hand control" window installs
+MediaPipe (a minute or two). Then the camera preview opens and the game's HAND CONTROL box turns on.
+
+**To change the code on Windows**, clone into a normal Windows folder (not inside WSL) and
+use `build.bat`:
+
+```powershell
+winget install Git.Git Kitware.CMake
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
+git clone --recursive https://github.com/Hussain5001/tetrisPlusPlus.git
+cd tetrisPlusPlus
+.\build.bat          # builds, then starts the game with hand control
+```
+
+Everything runs on one machine that way, so the camera works without the WSL networking steps below.
+
 ## Building
 
 ```bash
@@ -74,6 +101,9 @@ Tips for responsive play:
 - Good lighting and a plain background help MediaPipe the most.
 
 ### Playing from WSL
+
+The native Windows version above is simpler. Use this only if you want to keep playing in WSL.
+
 
 WSL2 can't access your laptop's webcam (`Could not open camera/video: 0`). The game can stay
 in WSL, but the hand tracking has to run on Windows. It sends gestures to the game over the network.
