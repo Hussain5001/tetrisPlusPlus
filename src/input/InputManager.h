@@ -11,7 +11,8 @@ class InputManager {
  public:
   static const int kGesturePort = 5005;
 
-  InputManager();
+  // any_interface: accept gestures from other machines / Windows (WSL)
+  explicit InputManager(bool any_interface = false);
 
   // Call once per frame; returns the actions triggered this frame.
   const std::vector<Action>& poll();

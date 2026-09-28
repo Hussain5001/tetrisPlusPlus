@@ -73,6 +73,32 @@ Tips for responsive play:
   ones, and `--no-vertical` turns off up/down swipes. Thresholds are in `gesture/gestures.py` (`Config`).
 - Good lighting and a plain background help MediaPipe the most.
 
+### Playing from WSL
+
+WSL2 can't access your laptop's webcam (`Could not open camera/video: 0`). The game can stay
+in WSL, but the hand tracking has to run on Windows. It sends gestures to the game over the network.
+
+**Automatic:** `./build/Tetris --gestures` detects WSL and starts `gesture\run_windows.bat`
+on Windows for you. You need Python 3.10–3.12 installed on Windows
+([python.org](https://www.python.org/downloads/)). The first start sets up a Python environment
+in `%LOCALAPPDATA%\tetrisplusplus` and installs MediaPipe, which takes a minute.
+
+**Manual**, if you prefer to start it yourself:
+
+- *Windows 11 with mirrored networking* (Windows and WSL share `localhost`). Add this to
+  `%UserProfile%\.wslconfig`, run `wsl --shutdown`, then reopen WSL:
+  ```ini
+  [wsl2]
+  networkingMode=mirrored
+  ```
+  Start `./build/Tetris` in WSL, then double-click `gesture\run_windows.bat` on Windows. From
+  WSL, `explorer.exe gesture` opens that folder.
+- *Default (NAT) networking*: start the game with `./build/Tetris --gesture-bind 0.0.0.0`, get
+  the WSL address with `hostname -I` (first address), then on Windows run
+  `gesture\run_windows.bat --host <that address>`.
+
+The camera preview window opens on Windows. The game's "HAND CONTROL" box turns green once gestures arrive.
+
 ### How it works
 
 ```

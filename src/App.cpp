@@ -1,9 +1,11 @@
 #include "App.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 
 #include "Color.h"
@@ -37,6 +39,15 @@ std::string format_time(double seconds) {
   return buf;
 }
 
+// True when running under Windows Subsystem for Linux
+bool running_in_wsl() {
+  std::ifstream version("/proc/version");
+  std::string text;
+  std::getline(version, text);
+  for (char& c : text) c = (char)std::tolower((unsigned char)c);
+  return text.find("microsoft") != std::string::npos;
+}
+
 std::string format_int(double value) {
   char buf[32];
   std::snprintf(buf, sizeof(buf), "%.0f", value);
@@ -55,7 +66,9 @@ void App::run_menu() {
   RenderTexture2D target = LoadRenderTexture(kWidth, kHeight);
   SetTextureFilter(target.texture, TEXTURE_FILTER_BILINEAR);
 
-  input.reset(new InputManager());
+  in_wsl = running_in_wsl();
+  if (in_wsl && launch_gesture_sidecar) gesture_bind_any = true;
+  input.reset(new InputManager(gesture_bind_any));
   if (launch_gesture_sidecar) start_sidecar();
 
   main_menu = ui::Menu({"ZEN MODE", "TIME ATTACK", "FIRST 40 LINES", "QUIT"});
@@ -443,7 +456,7 @@ void App::draw_gesture_status(float x, float y, float width) {
   if (!g.is_open()) {
     label = "HAND CONTROL: port busy";
   } else if (!live) {
-    label = "HAND CONTROL: off";
+    label = in_wsl ? "HAND CONTROL: use Windows" : "HAND CONTROL: off";
   } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
     label = "HAND CONTROL: following hand";
   } else if (g.seconds_since_gesture() < 2) {
@@ -477,7 +490,45 @@ void App::draw_overlay_panel(const char* title, const std::string& subtitle,
   ui::text_centered(subtitle.c_str(), kWidth / 2, 245, 26, ui::kText);
 }
 
+// Runs a shell command and returns the first line it prints
+static std::string first_line_of(const char* command) {
+  std::string line;
+#ifndef _WIN32
+  if (FILE* pipe = popen(command, "r")) {
+    char buf[256];
+    if (fgets(buf, sizeof(buf), pipe)) line = buf;
+    pclose(pipe);
+  }
+#endif
+  while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+  return line;
+}
+
 void App::start_sidecar() {
+  if (in_wsl) {
+    // WSL2 has no access to the webcam, so start the camera script on
+    // Windows through WSL interop. With mirrored networking Windows reaches
+    // us on localhost, otherwise it needs this WSL machine's address.
+    std::string bat = std::string(GetApplicationDirectory()) + "../gesture/run_windows.bat";
+    if (!FileExists(bat.c_str())) bat = "gesture/run_windows.bat";
+    std::string win_path = first_line_of(("wslpath -w \"" + bat + "\" 2>/dev/null").c_str());
+    std::string mode = first_line_of("wslinfo --networking-mode 2>/dev/null");
+    std::string host = "127.0.0.1";
+    if (mode != "mirrored") {
+      std::string ips = first_line_of("hostname -I 2>/dev/null");
+      host = ips.substr(0, ips.find(' '));
+    }
+    if (win_path.empty() || host.empty()) {
+      std::cout << "\nRunning in WSL: start gesture\\run_windows.bat on Windows "
+                   "(see README.md, \"Playing from WSL\")." << std::endl;
+      return;
+    }
+    std::string cmd = "cmd.exe /c \"" + win_path + "\" --host " + host + " &";
+    std::cout << "Running in WSL: starting hand tracking on Windows (sending to "
+              << host << "). The first start installs Python packages." << std::endl;
+    if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;
+    return;
+  }
   std::string candidates[] = {
       std::string(GetApplicationDirectory()) + "../gesture/hand_control.py",
       "gesture/hand_control.py", "../gesture/hand_control.py"};
