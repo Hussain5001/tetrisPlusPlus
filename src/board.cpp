@@ -78,22 +78,15 @@ bool Board::is_cell_within_bounds(int row, int col){
   return true;
 }
 
-// a function to draw the grid: a dark well with faint grid lines and
-// bevelled blocks for the filled cells
+// a function to draw the grid: empty cells are faint dots, filled cells are
+// glowing phosphor blocks
 void Board::draw(int x, int y){
-  int width=num_cols*cell_size;
-  int height=num_rows*cell_size;
-  DrawRectangle(x,y,width,height,cell_color(0));
-  for(int c=1;c<num_cols;c++){
-    DrawLine(x+c*cell_size,y,x+c*cell_size,y+height,ColorAlpha(WHITE,0.04f));
-  }
-  for(int r=1;r<num_rows;r++){
-    DrawLine(x,y+r*cell_size,x+width,y+r*cell_size,ColorAlpha(WHITE,0.04f));
-  }
   for(int r=0;r<num_rows;r++){
     for(int c=0;c<num_cols;c++){
       if(grid[r][c]!=0){
-        ui::draw_cell(x+c*cell_size,y+r*cell_size,cell_size,cell_color(grid[r][c]));
+        ui::draw_cell(x+c*cell_size,y+r*cell_size,cell_size,grid[r][c]);
+      }else{
+        ui::draw_empty_cell(x+c*cell_size,y+r*cell_size,cell_size);
       }
     }
   }

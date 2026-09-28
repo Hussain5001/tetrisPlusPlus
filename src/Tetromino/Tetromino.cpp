@@ -28,7 +28,7 @@ void Tetromino::draw(int x, int y) {
   for (Position cell : get_current_position()) {
     if (cell.row < 0) continue;  // not visible yet
     ui::draw_cell(x + cell.column * cell_size, y + cell.row * cell_size,
-                  cell_size, cell_color(color_id));
+                  cell_size, color_id);
   }
 }
 
@@ -37,7 +37,7 @@ void Tetromino::draw_ghost(int x, int y) {
   for (Position cell : get_current_position()) {
     if (cell.row < 0) continue;
     ui::draw_ghost_cell(x + cell.column * cell_size, y + cell.row * cell_size,
-                        cell_size, cell_color(color_id));
+                        cell_size, color_id);
   }
 }
 
