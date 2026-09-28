@@ -179,9 +179,22 @@ echo -n R | nc -u -w0 127.0.0.1 5005     # move right
 ## Tests
 
 ```bash
-./build/Tetris --test                          # C++ unit tests (board, tetrominoes, modes)
-python3 -m unittest gesture/test_gestures.py   # gesture detector with synthetic hands
+./build/Tetris --test                     # C++ tests; exits with an error if any fail
+python3 -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+xvfb-run -a python3 tests/smoke_test.py build/Tetris   # plays the real game headless
 ```
+
+- **C++** (`src/UnitTest*.h` from the original project, and `src/tests/`): movement, the piece bag,
+  soft/hard drop and ghost, gravity, lock delay, wall kicks, game over, line clearing, Zen levels,
+  pace, multiplier and save files, the pause-aware timer, Time Attack and First 40 scoring, high
+  scores, profile, colours, key auto-repeat, the UDP gesture protocol and menu navigation.
+- **Python**: the gesture detector with simulated hand movements, and the camera script's main
+  loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
+  camera fallback, WSL help, model download).
+- **Smoke test**: starts the game and plays it through UDP gesture commands: Time Attack to game
+  over (checks `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
+
+CI runs all of these on every push (Linux and Windows).
 
 ## Credits
 
