@@ -59,6 +59,4 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
 ## Git
 
 - Work on feature branches and open PRs into `main` of `Hussain5001/tetrisPlusPlus`.
-- Every commit message ends with a co-author trailer for the owner:
-  `Co-Authored-By: Hussain5001 <hussainshakir0421@gmail.com>`
 - Keep this file up to date when the architecture, commands or conventions change.
