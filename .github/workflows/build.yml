@@ -57,7 +57,7 @@ jobs:
           $out = & build/Release/Tetris.exe --test
           $code = $LASTEXITCODE
           $out
-          if ($code -ne 0 -or ($out | Select-String -SimpleMatch "FAILED")) { exit 1 }
+          if ($code -ne 0 -or ($out | Select-String -SimpleMatch -CaseSensitive "FAILED")) { exit 1 }
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
