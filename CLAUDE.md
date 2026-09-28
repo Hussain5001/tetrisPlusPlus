@@ -38,6 +38,8 @@ sending UDP commands (see below) instead of fake key presses.
 | `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. All thresholds are in `Config` |
 | `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
 | `gesture/test_gestures.py` | Tests using synthetic hand poses and movements |
+| `build.bat`, `packaging/windows/` | Windows: build from source and start; `play.bat` + README.txt go into the downloadable zip |
+| `.github/workflows/build.yml` | CI: Linux build + C++ and Python tests; Windows build + tests + `TetrisPlusPlus-windows` artifact (a release on `v*` tags) |
 | `gesture/run_windows.bat` | Windows launcher for the camera script (venv in `%LOCALAPPDATA%`); used when the game runs in WSL, which has no webcam. `App::start_sidecar()` starts it through WSL interop |
 
 ## Gesture protocol (UDP → `GestureSource::poll`)

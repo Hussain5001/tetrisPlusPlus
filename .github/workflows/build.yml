@@ -1,0 +1,74 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install raylib dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+      - name: C++ unit tests
+        working-directory: build
+        run: |
+          ./Tetris --test | tee test.log
+          if grep -q FAILED test.log; then exit 1; fi
+          test "$(grep -c passed test.log)" -ge 21
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Gesture detector tests
+        run: python -m unittest gesture/test_gestures.py
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build
+        run: |
+          cmake -B build -A x64
+          cmake --build build --config Release
+      - name: C++ unit tests
+        shell: pwsh
+        run: |
+          $out = & build/Release/Tetris.exe --test
+          $out
+          if ($out | Select-String -SimpleMatch "FAILED") { exit 1 }
+      - name: Package
+        shell: pwsh
+        run: |
+          $d = "dist/TetrisPlusPlus"
+          New-Item -ItemType Directory -Force $d, "$d/gesture" | Out-Null
+          Copy-Item build/Release/Tetris.exe $d
+          Copy-Item -Recurse build/Release/assets $d
+          Copy-Item gesture/*.py, gesture/requirements.txt, gesture/run_windows.bat "$d/gesture"
+          Copy-Item packaging/windows/play.bat, packaging/windows/README.txt $d
+          Compress-Archive -Path $d -DestinationPath dist/TetrisPlusPlus-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TetrisPlusPlus-windows
+          path: dist/TetrisPlusPlus
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/TetrisPlusPlus-windows.zip

@@ -529,15 +529,21 @@ void App::start_sidecar() {
     if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;
     return;
   }
-  std::string candidates[] = {
-      std::string(GetApplicationDirectory()) + "../gesture/hand_control.py",
-      "gesture/hand_control.py", "../gesture/hand_control.py"};
-  for (const std::string& path : candidates) {
-    if (!FileExists(path.c_str())) continue;
+  // The gesture folder sits next to the executable in the Windows zip, and
+  // one or two levels up in a build folder (build/ or build/Release/)
+  std::string exe_dir = GetApplicationDirectory();
+  std::string dirs[] = {exe_dir + "gesture/", exe_dir + "../gesture/",
+                        exe_dir + "../../gesture/", "gesture/"};
+  for (const std::string& dir : dirs) {
 #ifdef _WIN32
-    std::string cmd = "start \"\" python \"" + path + "\"";
+    // run_windows.bat sets up Python + MediaPipe on first use
+    std::string bat = dir + "run_windows.bat";
+    if (!FileExists(bat.c_str())) continue;
+    std::string cmd = "start \"Tetris++ hand control\" /min cmd /c \"" + bat + "\"";
 #else
-    std::string cmd = "python3 \"" + path + "\" &";
+    std::string script = dir + "hand_control.py";
+    if (!FileExists(script.c_str())) continue;
+    std::string cmd = "python3 \"" + script + "\" &";
 #endif
     std::cout << "Starting gesture sidecar: " << cmd << std::endl;
     if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;

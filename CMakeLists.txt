@@ -8,6 +8,9 @@ project(Tetris)
 file(GLOB_RECURSE SRCS CONFIGURE_DEPENDS src/*.cpp)
 list(FILTER SRCS EXCLUDE REGEX ".*/raylib_test\\.cpp$")
 
+# The bundled raylib/GLFW ask for very old CMake versions, which CMake 4
+# refuses; let them configure with the 3.5 policies (older CMake ignores this)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
 add_subdirectory(vendor/raylib)
 
 add_executable(${PROJECT_NAME} ${SRCS})
