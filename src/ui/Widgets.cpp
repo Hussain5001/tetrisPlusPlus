@@ -10,6 +10,9 @@ bool button(Rectangle r, const char* label, bool focused, Color accent,
   bool hover = CheckCollisionPointRec(mouse, r);
   bool pressed = hover && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
   bool active = focused || hover;
+  // Focused buttons are filled with the accent colour, hovered ones only lit
+  Color fill = focused ? ColorBrightness(accent, -0.2f)
+                       : hover ? kPanelLight : kPanel;
 
   Rectangle face = r;
   if (pressed) {
@@ -18,7 +21,7 @@ bool button(Rectangle r, const char* label, bool focused, Color accent,
   // Drop shadow
   DrawRectangleRounded({r.x, r.y + 4, r.width, r.height}, 0.3f, 8,
                        ColorAlpha(BLACK, 0.4f));
-  DrawRectangleRounded(face, 0.3f, 8, active ? ColorBrightness(accent, -0.2f) : kPanel);
+  DrawRectangleRounded(face, 0.3f, 8, fill);
   DrawRectangleRoundedLines(face, 0.3f, 8, 2, active ? ColorBrightness(accent, 0.3f) : kPanelLight);
   if (focused) {
     // Small arrow marker on the focused item
@@ -48,12 +51,10 @@ int Menu::run(const std::vector<Action>& actions, float cx, float y,
     }
   }
 
+  // The mouse only highlights and clicks; the focus belongs to the keyboard
+  // and gestures so a resting cursor can't steal it
   for (int i = 0; i < count; i++) {
     Rectangle r = {cx - width / 2, y + i * (height + gap), width, height};
-    if (CheckCollisionPointRec(GetMousePosition(), r) &&
-        (GetMouseDelta().x != 0 || GetMouseDelta().y != 0)) {
-      focus = i;  // mouse movement moves the focus too
-    }
     Color accent = i < (int)accents.size() ? accents[i] : kAccent;
     if (button(r, items[i].c_str(), i == focus, accent)) chosen = i;
   }
