@@ -2,6 +2,10 @@
 #include <iostream>
 #include <string>
 
+#include <cstdio>
+#include <fstream>
+
+#include "HighScores.h"
 #include "Tetromino/Block_I.h"
 #include "zen_mode.h"
 
@@ -14,6 +18,7 @@ class UnitTestExtras {
     run_test_zen_level_up();
     run_test_wall_kick();
     run_test_lock_delay();
+    run_test_high_scores();
   }
 
  private:
@@ -94,5 +99,53 @@ class UnitTestExtras {
     game.tick(t + 0.85);
     bool locked = game.piece_id != id;
     report("lock delay", still_falling_piece && waiting && reset && locked);
+  }
+
+  // Scores are ranked per mode, kept to five, remembered with the last run,
+  // and survive a reload; a corrupt file doesn't crash
+  void run_test_high_scores() {
+    const char* path = "test_scores.json";
+    std::remove(path);
+    HighScores scores(path);
+    scores.load();
+    bool empty = scores.best(1) == nullptr && scores.last(1) == nullptr;
+
+    int ranks[7];
+    double zen[] = {500, 900, 100, 700, 300, 800, 50};
+    for (int i = 0; i < 7; i++) {
+      ScoreEntry e;
+      e.value = zen[i];
+      ranks[i] = scores.record(1, e);
+    }
+    bool zen_ok = scores.top(1).size() == 5 && scores.best(1)->value == 900 &&
+                  scores.top(1).back().value == 300 && ranks[1] == 1 &&
+                  ranks[6] == 0 && scores.last(1)->value == 50;
+
+    ScoreEntry slow, fast, unfinished;
+    slow.value = 95.0;
+    fast.value = 71.5;
+    unfinished.value = 12.0;
+    unfinished.lines = 9;
+    scores.record(3, slow);
+    int fast_rank = scores.record(3, fast);
+    int unfinished_rank = scores.record(3, unfinished, false);
+    bool forty_ok = fast_rank == 1 && unfinished_rank == 0 &&
+                    scores.best(3)->value == 71.5 && scores.last(3)->lines == 9;
+
+    HighScores reloaded(path);
+    reloaded.load();
+    bool persisted = reloaded.best(1)->value == 900 && reloaded.last(3)->value == 12.0 &&
+                     reloaded.top(2).empty() && !reloaded.best(1)->date.empty();
+
+    std::ofstream(path) << "{ not json";
+    HighScores broken(path);
+    broken.load();
+    bool tolerant = broken.total_entries() == 0;
+    std::remove(path);
+
+    report("high scores ranking", empty && zen_ok);
+    report("high scores first 40 (lower time wins)", forty_ok);
+    report("high scores saved and reloaded", persisted);
+    report("high scores with a broken file", tolerant);
   }
 };
