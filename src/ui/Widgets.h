@@ -28,6 +28,10 @@ class Menu {
   int run(const std::vector<Action>& actions, float x, float y, float width,
           float line_height = 40, float font_size = 32);
 
+  // The keyboard/gesture part of run(), without drawing or the mouse:
+  // moves the focus, sets changed_row/change and returns the chosen item
+  int handle(const std::vector<Action>& actions);
+
   std::vector<std::string> items;
   std::vector<std::string> values;  // optional value shown on the right
   std::vector<bool> disabled;       // optional; disabled rows are skipped

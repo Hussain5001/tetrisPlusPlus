@@ -86,7 +86,7 @@ void ZenMode::update_level() {
     }
 }
 // Function to save the current game state to a JSON file
-void ZenMode::save_game_state() {
+void ZenMode::save_game_state(const std::string& path) {
     try {
         json game_state;
         json grid_array;
@@ -110,9 +110,9 @@ void ZenMode::save_game_state() {
         game_state["total_lines_cleared"]=total_lines_cleared;
         game_state["lines_counter"]=lines_counter;
 
-        std::ofstream file("game_state.json");
+        std::ofstream file(path);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open file: game_state.json");
+            throw std::runtime_error("Failed to open file: " + path);
         }
         file << game_state.dump(4);
     } catch (const std::exception &e) {
@@ -120,11 +120,11 @@ void ZenMode::save_game_state() {
     }
 }
  // Loading other game state data from the JSON file
-void ZenMode::load_game_state() {
+void ZenMode::load_game_state(const std::string& path) {
     try {
-        std::ifstream file("game_state.json");
+        std::ifstream file(path);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open file: game_state.json");
+            throw std::runtime_error("Failed to open file: " + path);
         }
 
         json game_state;

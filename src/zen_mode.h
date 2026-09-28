@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "game.h" // including the header file for the base Game class
 
 // Choices made on the Zen setup screen
@@ -47,8 +49,8 @@ public:
     void update_level();
 
     // Function to save the game state to a JSON file
-    void save_game_state();
+    void save_game_state(const std::string& path = "game_state.json");
 
     // Function to load the game state from a JSON file
-    void load_game_state();
+    void load_game_state(const std::string& path = "game_state.json");
 };

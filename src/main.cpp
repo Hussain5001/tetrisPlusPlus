@@ -3,9 +3,12 @@
 
 #include "App.h"
 #include "UnitTestBoard.h"
-#include "UnitTestExtras.h"
 #include "UnitTestModes.h"
 #include "UnitTestTetromino.h"
+#include "tests/TestData.h"
+#include "tests/TestGame.h"
+#include "tests/TestInput.h"
+#include "tests/TestModes.h"
 
 // Usage:
 //   Tetris              play the game (gestures work if the sidecar is running)
@@ -35,9 +38,14 @@ int main(int argc, char** argv) {
     UnitTestModes test_modes;
     test_modes.run_test_modes();
 
-    UnitTestExtras test_extras;
-    test_extras.run_test_extras();
-    return 0;
+    // Tetris++ tests: these count failures and set the exit code
+    TestGame().run();
+    TestModes().run();
+    TestData().run();
+    TestInput().run();
+    std::cout << "\n" << test::stats().passed << " checks passed, " << test::stats().failed
+              << " failed" << std::endl;
+    return test::stats().failed > 0 ? 1 : 0;
   }
 
   tetr.run_menu();
