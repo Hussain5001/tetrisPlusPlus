@@ -13,6 +13,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ./build/Tetris                         # play
 ./build/Tetris --gestures              # also launch gesture/hand_control.py
 ./build/Tetris --test                  # C++ unit tests (all lines should say "passed")
+./build/Tetris --gesture-bind 0.0.0.0  # accept gestures from another machine (Windows → WSL)
 python3 -m unittest gesture/test_gestures.py
 ```
 
@@ -37,6 +38,7 @@ sending UDP commands (see below) instead of fake key presses.
 | `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. All thresholds are in `Config` |
 | `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
 | `gesture/test_gestures.py` | Tests using synthetic hand poses and movements |
+| `gesture/run_windows.bat` | Windows launcher for the camera script (venv in `%LOCALAPPDATA%`); used when the game runs in WSL, which has no webcam. `App::start_sidecar()` starts it through WSL interop |
 
 ## Gesture protocol (UDP → `GestureSource::poll`)
 
@@ -58,5 +60,6 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
 
 ## Git
 
-- Work on feature branches and open PRs into `main` of `Hussain5001/tetrisPlusPlus`.
+- Work on logically named branches (`fix/wsl-camera`, `feature/crt-ui-zen-levels`, …) cut from
+  the latest `main`, and open PRs into `main` of `Hussain5001/tetrisPlusPlus`.
 - Keep this file up to date when the architecture, commands or conventions change.

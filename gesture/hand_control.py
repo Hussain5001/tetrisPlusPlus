@@ -25,6 +25,10 @@ import sys
 import time
 import urllib.request
 
+# Keep OpenCV quiet: a missing camera otherwise prints pages of warnings
+os.environ.setdefault("OPENCV_LOG_LEVEL", "OFF")
+os.environ.setdefault("OPENCV_VIDEOIO_DEBUG", "0")
+
 try:
     import cv2
     import mediapipe as mp
@@ -56,16 +60,59 @@ def ensure_model():
     return MODEL_PATH
 
 
+def running_in_wsl():
+    try:
+        with open("/proc/version") as f:
+            return "microsoft" in f.read().lower()
+    except OSError:
+        return False
+
+
+CAMERA_HELP_WSL = """
+No webcam found. You're running inside WSL, and WSL2 can't see the laptop's
+camera. Run the hand tracking on Windows instead; the game can stay in WSL:
+
+  1. Easiest (Windows 11): turn on mirrored networking so Windows and WSL
+     share localhost. Put this in %UserProfile%\\.wslconfig, then run
+     `wsl --shutdown` in PowerShell and reopen WSL:
+         [wsl2]
+         networkingMode=mirrored
+     Start the game in WSL (./build/Tetris), then on Windows double-click
+     gesture\\run_windows.bat
+
+  2. Without mirrored networking: start the game with
+         ./build/Tetris --gesture-bind 0.0.0.0
+     get the WSL address with `hostname -I` (first address), then on Windows:
+         gesture\\run_windows.bat --host <that address>
+
+See README.md, "Playing from WSL".
+"""
+
+CAMERA_HELP = """
+No webcam found. Check that a camera is connected and not used by another
+app, or pick one with --camera 1 (or a video file with --camera clip.mp4).
+"""
+
+
 def open_camera(source, width, height):
-    cap = cv2.VideoCapture(source)
-    # Small frames and a 1-frame buffer keep latency low
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    cap.set(cv2.CAP_PROP_FPS, 60)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    if not cap.isOpened():
-        sys.exit(f"Could not open camera/video: {source}")
-    return cap
+    # With the default camera, also try the next few indices (USB cams are
+    # often 1 or 2)
+    candidates = [source] if not isinstance(source, int) or source != 0 else [0, 1, 2, 3]
+    for candidate in candidates:
+        cap = cv2.VideoCapture(candidate)
+        if not cap.isOpened():
+            cap.release()
+            continue
+        # Small frames and a 1-frame buffer keep latency low
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        cap.set(cv2.CAP_PROP_FPS, 60)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if candidate != source:
+            print(f"Using camera {candidate}")
+        return cap
+    print(f"Could not open camera/video: {source}", file=sys.stderr)
+    sys.exit(CAMERA_HELP_WSL if running_in_wsl() and isinstance(source, int) else CAMERA_HELP)
 
 
 def draw_preview(frame, landmarks, detector, fps, flash):
@@ -97,7 +144,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--camera", default="0", help="camera index or video file")
     ap.add_argument("--mode", choices=["swipe", "position"], default="swipe")
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="address of the game (the WSL IP when the game runs in WSL)")
     ap.add_argument("--port", type=int, default=5005)
     ap.add_argument("--width", type=int, default=640)
     ap.add_argument("--height", type=int, default=360)
@@ -114,6 +162,9 @@ def main():
     cfg.vertical_swipes = not args.no_vertical
     detector = GestureDetector(cfg, args.mode)
 
+    source = int(args.camera) if args.camera.isdigit() else args.camera
+    cap = open_camera(source, args.width, args.height)
+
     landmarker = vision.HandLandmarker.create_from_options(
         vision.HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=ensure_model()),
@@ -123,8 +174,6 @@ def main():
             min_hand_presence_confidence=0.5,
             min_tracking_confidence=0.5))
 
-    source = int(args.camera) if args.camera.isdigit() else args.camera
-    cap = open_camera(source, args.width, args.height)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     target = (args.host, args.port)
     print(f"Sending gestures to udp://{args.host}:{args.port} ({args.mode} mode)")

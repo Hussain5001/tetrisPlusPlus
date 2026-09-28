@@ -32,7 +32,7 @@ GestureSource::~GestureSource() {
 #endif
 }
 
-bool GestureSource::open(int port) {
+bool GestureSource::open(int port, bool any_interface) {
 #ifdef _WIN32
   WSADATA wsa;
   if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
@@ -49,7 +49,7 @@ bool GestureSource::open(int port) {
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_port = htons((unsigned short)port);
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_addr.s_addr = htonl(any_interface ? INADDR_ANY : INADDR_LOOPBACK);
   if (bind(s, (sockaddr*)&addr, sizeof(addr)) != 0) {
     std::cerr << "Gesture input: could not bind UDP port " << port << std::endl;
 #ifdef _WIN32
@@ -61,8 +61,8 @@ bool GestureSource::open(int port) {
     return false;
   }
   sock_ = (long long)s;
-  std::cout << "Gesture input: listening on udp://127.0.0.1:" << port
-            << std::endl;
+  std::cout << "Gesture input: listening on udp://"
+            << (any_interface ? "0.0.0.0:" : "127.0.0.1:") << port << std::endl;
   return true;
 }
 

@@ -22,8 +22,10 @@ class GestureSource {
   GestureSource(const GestureSource&) = delete;
   GestureSource& operator=(const GestureSource&) = delete;
 
-  // Opens the socket on 127.0.0.1:port. Returns false if the port is taken.
-  bool open(int port);
+  // Opens the socket on 127.0.0.1:port, or on every interface when
+  // any_interface is true (needed when the camera script runs on Windows and
+  // the game runs in WSL). Returns false if the port is taken.
+  bool open(int port, bool any_interface = false);
 
   // Appends every action received since the last call to `out`.
   void poll(std::vector<Action>& out);

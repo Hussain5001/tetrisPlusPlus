@@ -23,6 +23,9 @@ class App {
   // Starts the gesture sidecar (gesture/hand_control.py) in the background
   bool launch_gesture_sidecar = false;
 
+  // Listen for gestures on all network interfaces (--gesture-bind 0.0.0.0)
+  bool gesture_bind_any = false;
+
  private:
   enum class Scene { MainMenu, ZenChoice, Playing, Paused, GameOver };
 
@@ -76,4 +79,7 @@ class App {
   std::string game_over_title();
   std::string game_over_subtitle();
   void start_sidecar();
+
+  // WSL can't use the laptop webcam, so the camera script runs on Windows
+  bool in_wsl = false;
 };
