@@ -230,6 +230,7 @@ def main():
         cap.release()
         cv2.destroyAllWindows()
         landmarker.close()
+        sock.close()
 
 
 if __name__ == "__main__":
