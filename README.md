@@ -4,14 +4,21 @@ An extended version of **TetrisX**, our university C++ Tetris clone
 ([Hussain5001/tetris](https://github.com/Hussain5001/tetris)). The original
 repository is left untouched; this one adds:
 
-- **A redesigned UI.** Everything runs in one resizable window, with bevelled blocks, a ghost piece,
-  a line-clear flash, stat panels for each mode, and pause and game-over screens.
+- **A night-terminal look.** Amber or green phosphor on black, shown through a CRT effect with
+  curved glass, scanlines and glow. The well is framed with `<! !>` like the 1984 original.
+- **Zen levels.** Choose a start level (speed and score multiplier) and a pace (how quickly it
+  speeds up), plus quick settings, all remembered between runs.
+- **Smoother play.** Lock delay, wall kicks, a sliding block, a 3-2-1 countdown, line-clear
+  sparks, a hard-drop trail and generated sound effects.
+- **High scores.** The best five results and your last run for every mode, saved to `scores.json`.
 - **Hands-free play.** A small Python program watches your webcam, recognises hand
   gestures with MediaPipe and sends them to the game.
 
-| Menu | Playing | Paused | Game over |
-|---|---|---|---|
-| ![menu](docs/screenshots/menu.png) | ![gameplay](docs/screenshots/gameplay.png) | ![pause](docs/screenshots/pause.png) | ![game over](docs/screenshots/gameover.png) |
+| Boot | Menu | Zen setup |
+|---|---|---|
+| ![boot](docs/screenshots/boot.png) | ![menu](docs/screenshots/menu.png) | ![zen setup](docs/screenshots/zen-setup.png) |
+| **Playing** | **Paused** | **Game over** |
+| ![gameplay](docs/screenshots/gameplay.png) | ![pause](docs/screenshots/pause.png) | ![game over](docs/screenshots/gameover.png) |
 
 ## Building
 
@@ -36,8 +43,32 @@ If you cloned without `--recursive`, run `git submodule update --init` first.
 | ↑ or X | rotate |
 | ↓ | soft drop |
 | Space | hard drop |
-| Esc or P | pause |
+| Esc or P | pause (the game also pauses when its window loses focus) |
 | Enter | select in menus |
+| M | sound on/off |
+| F11 | fullscreen |
+
+## Zen setup
+
+Choosing **zen** opens a setup screen. Use ← / → to change a value and ↑ / ↓ to move:
+
+| Setting | What it does |
+|---|---|
+| start level 1–10 | Starting speed, from 0.80 s per row at level 1 to 0.10 s at level 10. Each level adds ×0.5 to the score multiplier, so level 5 scores ×3. |
+| pace | How often you level up: **chill** every 10 lines, **steady** 8, **rising** 5 (the original), **brutal** 3. Past level 10 it keeps speeding up down to 0.05 s per row. |
+| phosphor | **amber**, **green**, or **multi** (muted colours per block) |
+| ghost piece | Show where the block will land |
+| crt effect | The curved-glass/scanline effect; turn it off on slow machines |
+| sound | Generated terminal-style beeps |
+
+Choices are saved in `profile.json`. **continue saved** loads a game saved with *save & quit* from the pause menu.
+
+## High scores
+
+Every finished game is saved to `scores.json` straight away: the **top 5** for each mode, plus your
+**last run** (even when it isn't a high score). The menu shows the best and last result for the
+selected mode, and the game-over screen shows your rank and the table. First 40 Lines ranks by the
+fastest time and only counts games where you actually cleared 40 lines.
 
 ## Hands-free play (camera gestures)
 
