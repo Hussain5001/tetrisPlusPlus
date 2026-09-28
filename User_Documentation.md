@@ -4,19 +4,33 @@
 This is an introduction guide to our game of Tetris. It is a classic puzzle video game that involves fitting falling geometric shapes (Tetriminos) into a grid to create complete rows, which then disappear.
 
 ## On building the code
-After you've successfully built the code, a Main Menu opens that gives you three play options: 
-1. **Zen Mode** : This is a non-timed version where user can play for as long as they want until the game finishes. They are also given the option to **Quit**  the game or **Quit and Save** if they'd like to save their progress.
+After you've successfully built the code, a Main Menu opens that gives you three play options (use the mouse, the arrow keys + Enter, or hand gestures to choose): 
+1. **Zen Mode** : This is a non-timed version where user can play for as long as they want until the game finishes. From the pause menu (Esc, P, or hold a fist) they can **Quit** the game or **Save & Quit** if they'd like to save their progress, and continue later with **Continue Saved**.
 2. **Time Attack**: This is a 120 seconds timed game wherein the user has to score as much as they can in 120 seconds.
 3. **First Forty Lines Clearance**: In this, the user has to clear 40 lines as fast as they can. along with the timer, you get a **Lines** prompter which tells you the number of lines cleared so far. 
 
-In all the modes, the user also gets an option to go back to the **Main Menu** in case the they changes their about the mode they want to play.
+In all the modes, the pause menu also lets the user go back to the **Main Menu** in case they change their mind about the mode they want to play. When a game ends, **Play Again** starts the same mode again.
 
 ## Controls
 The game is pretty intuitive, wherein the tetrominoes can be controlled as follows: 
-* Right arrow key: move block right
-* Left arrow key: move block left
+* Right arrow key: move block right (hold to keep moving)
+* Left arrow key: move block left (hold to keep moving)
+* Up arrow key or X: rotate the block
 * Down arrow key: move block one row down
 * Spacebar: force the block to fall directly.
+* Esc or P: pause
+
+The faint outline at the bottom of the board (the "ghost") shows where the block will land.
+
+### Hands-free controls
+Run `./build/Tetris --gestures` (after `pip install -r gesture/requirements.txt`) to play with your webcam:
+* Swipe left / right: move the block
+* Swipe down: force fall
+* Swipe up or pinch: rotate
+* Hold a fist: pause / select in menus
+* Position mode (`python3 gesture/hand_control.py --mode position`): the block follows your hand sideways
+
+See the README for tuning tips.
 
 ## More on the 3 Modes
 
@@ -35,7 +49,7 @@ There is a score_multiplier(SM) that increases the score every time the block fa
 * +500*SM; for every line cleared if 4 lines cleared together
 
 ### Time Attack:
-The user gets 120 seconds to score as much as they can.
+The user gets 120 seconds to score as much as they can. The timer stops while the game is paused.
 
 
 

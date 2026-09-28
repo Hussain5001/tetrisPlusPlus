@@ -8,6 +8,10 @@ public:
     // Constructor with default values for rows and columns
     Board(int row = 20, int col = 10);
 
+    // The grid owns raw memory, so copying a Board is not allowed
+    Board(const Board&) = delete;
+    Board& operator=(const Board&) = delete;
+
     // Destructor
     ~Board();
 
@@ -35,8 +39,20 @@ public:
     // 2D grid to hold the board state
     int** grid;
 
-    // Method to draw the board
-    void draw();
+    // Method to draw the board with its top-left corner at (x, y)
+    void draw(int x = 0, int y = 0);
+
+    // Rows removed by the last row_clearance() call (for the flash effect)
+    std::vector<int> last_cleared_rows;
+
+    // Increases every time at least one row is cleared
+    int clear_events = 0;
+
+    // Size of each cell in pixels
+    int get_cell_size();
+
+    //Method to get the column value
+    int get_num_cols();
 
     //Method to get the grid value
     int get_grid_value(int given_row,int given_column);
@@ -55,9 +71,6 @@ private:
 
     // Size of each cell in the grid
     int cell_size;
-
-    // Vector to hold colors for the grid
-    std::vector<Color> colors;
 
     // Method to create the grid
     void create_grid();

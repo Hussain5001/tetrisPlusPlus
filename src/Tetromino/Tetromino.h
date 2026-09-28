@@ -11,7 +11,6 @@ class Tetromino{
 
     private:
     int cell_size;
-    std::vector<Color> colors;
     int row_pos;
     int col_pos;
 
@@ -21,7 +20,8 @@ class Tetromino{
     int current_rotation;
     std::map<int, std::vector<Position>> cells;
     std::vector<Position> get_current_position();
-    void draw();
+    void draw(int x = 0, int y = 0);
+    void draw_ghost(int x = 0, int y = 0);
     void move(int row, int col);
     void rotate();
     virtual void set_initial_position();

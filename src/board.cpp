@@ -1,6 +1,7 @@
 #include "board.h"
 #include <iostream>
 #include "raylib.h"
+#include "ui/Draw.h"
 
 // constructor
 Board::Board(int row,int col):num_rows{row},num_cols{col}{
@@ -10,7 +11,6 @@ Board::Board(int row,int col):num_rows{row},num_cols{col}{
 
   //set values
   cell_size=30;
-  colors=color_vector();
 
   //allocate space for grid
   create_grid();
@@ -78,18 +78,33 @@ bool Board::is_cell_within_bounds(int row, int col){
   return true;
 }
 
-// a function to draw the grid
-void Board::draw(){
+// a function to draw the grid: a dark well with faint grid lines and
+// bevelled blocks for the filled cells
+void Board::draw(int x, int y){
+  int width=num_cols*cell_size;
+  int height=num_rows*cell_size;
+  DrawRectangle(x,y,width,height,cell_color(0));
+  for(int c=1;c<num_cols;c++){
+    DrawLine(x+c*cell_size,y,x+c*cell_size,y+height,ColorAlpha(WHITE,0.04f));
+  }
+  for(int r=1;r<num_rows;r++){
+    DrawLine(x,y+r*cell_size,x+width,y+r*cell_size,ColorAlpha(WHITE,0.04f));
+  }
   for(int r=0;r<num_rows;r++){
     for(int c=0;c<num_cols;c++){
-      DrawRectangle(c*cell_size+1,r*cell_size+1,cell_size-1,cell_size-1,colors[grid[r][c]]);
+      if(grid[r][c]!=0){
+        ui::draw_cell(x+c*cell_size,y+r*cell_size,cell_size,cell_color(grid[r][c]));
+      }
     }
   }
 }
 
-// to get the value of the specific cell
-int Board::get_cell_value(int row, int col) {
-    return grid[row][col];
+int Board::get_cell_size(){
+  return cell_size;
+}
+
+int Board::get_num_cols(){
+  return num_cols;
 }
 
 // to check if the cell is empty
@@ -99,8 +114,10 @@ bool Board::is_cell_empty(int row, int col) {
 // a function to clear a row and shift the above row down  
 int Board::row_clearance(){
   int full_row=0;
+  last_cleared_rows.clear();
   for(int r=num_rows-1;r>=0;r--){
     if(is_row_full(r)){
+      last_cleared_rows.push_back(r);
       for(int c=0;c<num_cols;c++){
         grid[r][c]=0;
       }
@@ -111,6 +128,9 @@ int Board::row_clearance(){
            grid[r][col]=0;
          }
        }
+  }
+  if(full_row>0){
+    clear_events++;
   }
   return full_row;
 }

@@ -5,3 +5,12 @@ build/
 CMakeCache.txt
 
 # vendor/
+
+# build output
+build*/
+bui/
+cmake-build-*/
+*.out
+__pycache__/
+.venv/
+gesture/models/

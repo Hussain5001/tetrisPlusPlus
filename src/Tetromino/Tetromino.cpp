@@ -1,12 +1,13 @@
 #include"Tetromino.h"
 #include<raylib.h>
 #include <iostream>
+#include "../ui/Draw.h"
 
 //Default constructor for initializing all the attributes
 Tetromino::Tetromino(){
     cell_size=30;
     current_rotation=0;
-    colors = color_vector();
+    color_id=0;
     row_pos=0;
     col_pos=0;
 };
@@ -22,13 +23,23 @@ std::vector<Position> Tetromino::get_current_position() {
     return block_with_offset;
 }
 
-void Tetromino::draw() {
+void Tetromino::draw(int x, int y) {
   // getting the position of block in grid
-  std::vector<Position> cell_positions = get_current_position();
-  for (Position cell : cell_positions) {
-    DrawRectangle(cell.column * cell_size + 1,cell.row * cell_size + 1, cell_size - 1,cell_size - 1, colors[this->color_id]);
-  };
-};
+  for (Position cell : get_current_position()) {
+    if (cell.row < 0) continue;  // not visible yet
+    ui::draw_cell(x + cell.column * cell_size, y + cell.row * cell_size,
+                  cell_size, cell_color(color_id));
+  }
+}
+
+// Draws the block as an outline, used to show where it will land
+void Tetromino::draw_ghost(int x, int y) {
+  for (Position cell : get_current_position()) {
+    if (cell.row < 0) continue;
+    ui::draw_ghost_cell(x + cell.column * cell_size, y + cell.row * cell_size,
+                        cell_size, cell_color(color_id));
+  }
+}
 
 void Tetromino::move(int row, int col){
 
