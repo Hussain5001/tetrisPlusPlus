@@ -141,7 +141,6 @@ void App::frame(const std::vector<Action>& actions) {
     case Scene::Playing: {
       update_game(actions);
       if (!game) break;
-      draw_background(false);
       draw_board();
       draw_sidebar();
       draw_gesture_popup();
@@ -149,11 +148,10 @@ void App::frame(const std::vector<Action>& actions) {
     }
 
     case Scene::Paused: {
-      draw_background(false);
       draw_board();
       draw_sidebar();
-      draw_overlay_panel("PAUSED", "Swipe to choose, palm to select",
-                         ui::kAccent, 380);
+      draw_overlay_panel("PAUSED", "Swipe to choose, fist to select",
+                         ui::kAccent, 150 + pause_menu.items.size() * 62.f);
       int choice = pause_menu.run(actions, kWidth / 2, 290, 300, 50, 12);
       for (Action a : actions) {
         if (a == Action::Pause || a == Action::Back) choice = 0;
@@ -175,13 +173,12 @@ void App::frame(const std::vector<Action>& actions) {
     }
 
     case Scene::GameOver: {
-      draw_background(false);
       draw_board();
       draw_sidebar();
       std::string title = game_over_title();
       bool good = title != "GAME OVER";
       draw_overlay_panel(title.c_str(), game_over_subtitle(),
-                         good ? kAttackColor : kFortyColor, 360);
+                         good ? kAttackColor : kFortyColor, 370);
       int choice = over_menu.run(actions, kWidth / 2, 330, 300, 50, 12);
       if (choice == 0) {
         start_game(mode, false);
@@ -305,7 +302,7 @@ std::string App::game_over_subtitle() {
 
 // ---------------------------------------------------------------- drawing
 
-void App::draw_background(bool animate) {
+void App::draw_background(bool animate) {  // menus only
   if (background_cells.empty()) {
     for (int i = 0; i < 40; i++) {
       background_cells.push_back(
@@ -446,7 +443,7 @@ void App::draw_gesture_status(float x, float y, float width) {
   if (!g.is_open()) {
     label = "HAND CONTROL: port busy";
   } else if (!live) {
-    label = "HAND CONTROL: off (--gestures)";
+    label = "HAND CONTROL: off";
   } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
     label = "HAND CONTROL: following hand";
   } else if (g.seconds_since_gesture() < 2) {
@@ -477,7 +474,7 @@ void App::draw_overlay_panel(const char* title, const std::string& subtitle,
   DrawRectangleRounded(panel, 0.08f, 8, ui::kPanel);
   DrawRectangleRoundedLines(panel, 0.08f, 8, 3, accent);
   ui::text_centered(title, kWidth / 2, 170, 72, accent);
-  ui::text_centered(subtitle.c_str(), kWidth / 2, 245, 28, ui::kText);
+  ui::text_centered(subtitle.c_str(), kWidth / 2, 245, 26, ui::kText);
 }
 
 void App::start_sidecar() {
