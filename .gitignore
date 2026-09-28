@@ -13,3 +13,4 @@ cmake-build-*/
 *.out
 __pycache__/
 .venv/
+gesture/models/

@@ -78,6 +78,19 @@ void GestureSource::poll(std::vector<Action>& out) {
     if (n <= 0) break;  // nothing left (EWOULDBLOCK) or error
     last_packet_ = now();
     for (long i = 0; i < n; i++) {
+      if (buf[i] == '@') {
+        int column = 0;
+        bool has_digit = false;
+        while (i + 1 < n && buf[i + 1] >= '0' && buf[i + 1] <= '9') {
+          column = column * 10 + (buf[++i] - '0');
+          has_digit = true;
+        }
+        if (has_digit) {
+          target_column_ = column;
+          last_target_ = last_packet_;
+        }
+        continue;
+      }
       Action a;
       switch (buf[i]) {
         case 'L': a = Action::Left; break;
@@ -98,6 +111,10 @@ void GestureSource::poll(std::vector<Action>& out) {
 }
 
 bool GestureSource::connected() const { return now() - last_packet_ < 3.0; }
+
+int GestureSource::target_column() const {
+  return now() - last_target_ < 0.3 ? target_column_ : -1;
+}
 
 double GestureSource::seconds_since_gesture() const {
   return now() - last_gesture_;

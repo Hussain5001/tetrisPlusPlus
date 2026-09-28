@@ -2,6 +2,8 @@
 
 #include <time.h>
 
+#include <algorithm>
+
 #include <iostream>
 #include <random>
 
@@ -93,6 +95,26 @@ void Game::hard_drop() {
       }
     }
   }
+}
+
+// Function to move the block one column towards the target column. The
+// block's centre column is compared with the target.
+bool Game::step_towards_column(int column) {
+  if (game_over) return false;
+  std::vector<Position> cells = current_block.get_current_position();
+  int min_col = cells[0].column, max_col = cells[0].column;
+  for (Position cell : cells) {
+    min_col = std::min(min_col, cell.column);
+    max_col = std::max(max_col, cell.column);
+  }
+  int centre = (min_col + max_col) / 2;
+  int before = current_block.get_col_offset();
+  if (centre < column) {
+    move_right();
+  } else if (centre > column) {
+    move_left();
+  }
+  return current_block.get_col_offset() != before;
 }
 
 // Function to find the cells the current block would occupy if dropped

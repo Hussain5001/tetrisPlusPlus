@@ -44,6 +44,10 @@ public:
     // Function to drop the current block straight to the bottom
     void hard_drop();
 
+    // Function to step the current block one column towards `column`
+    // (used by the gesture position mode). Returns false when it can't move.
+    bool step_towards_column(int column);
+
     // Function to get where the current block would land (ghost piece)
     std::vector<Position> ghost_position();
 

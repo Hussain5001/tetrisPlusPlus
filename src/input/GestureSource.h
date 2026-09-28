@@ -11,6 +11,7 @@
 // Protocol: each datagram holds one or more single-letter commands
 //   L = left, R = right, D = soft drop, H = hard drop, U = rotate,
 //   P = pause, C = confirm, B = back, K = keep-alive (no action)
+//   @N = position mode: move the falling piece towards board column N
 //
 // Note: this file deliberately does not include raylib.h, because raylib's
 // names clash with <windows.h> / <winsock2.h> on Windows.
@@ -37,10 +38,16 @@ class GestureSource {
 
   Action last_action() const { return last_action_; }
 
+  // Column the player's hand points at in position mode, or -1 if the
+  // sidecar is not in position mode / the hand left the camera
+  int target_column() const;
+
  private:
   long long sock_ = -1;  // SOCKET on Windows, int elsewhere
   double last_packet_ = -1e9;
   double last_gesture_ = -1e9;
   Action last_action_ = Action::Left;
+  int target_column_ = -1;
+  double last_target_ = -1e9;
   static double now();
 };

@@ -233,6 +233,12 @@ void App::update_game(const std::vector<Action>& actions) {
     }
     game->apply(a);
   }
+
+  // Position mode: the piece follows the hand, one column per frame
+  int column = input->gestures().target_column();
+  if (column >= 0) {
+    game->step_towards_column(column);
+  }
   game->fall_block();
 
   if (mode == 3) {
@@ -441,6 +447,8 @@ void App::draw_gesture_status(float x, float y, float width) {
     label = "HAND CONTROL: port busy";
   } else if (!live) {
     label = "HAND CONTROL: off (--gestures)";
+  } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
+    label = "HAND CONTROL: following hand";
   } else if (g.seconds_since_gesture() < 2) {
     label = std::string("HAND CONTROL: ") + action_name(g.last_action());
   } else {
