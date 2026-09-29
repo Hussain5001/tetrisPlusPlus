@@ -20,7 +20,7 @@ jobs:
       - name: Install raylib dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+          sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
       - name: Build
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -28,14 +28,18 @@ jobs:
       - name: C++ unit tests
         working-directory: build
         run: |
+          set -o pipefail
           ./Tetris --test | tee test.log
           if grep -q FAILED test.log; then exit 1; fi
-          test "$(grep -c passed test.log)" -ge 21
+          # the original tests only print on success, so also count them
+          test "$(grep -c "passed!" test.log)" -ge 88
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Gesture detector tests
-        run: python -m unittest gesture/test_gestures.py
+      - name: Python tests (gesture detector and camera script)
+        run: python -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+      - name: Smoke test (plays the real game headless)
+        run: xvfb-run -a -s "-screen 0 1024x768x24" python tests/smoke_test.py build/Tetris
 
   windows:
     runs-on: windows-latest
@@ -51,8 +55,20 @@ jobs:
         shell: pwsh
         run: |
           $out = & build/Release/Tetris.exe --test
+          $code = $LASTEXITCODE
           $out
-          if ($out | Select-String -SimpleMatch "FAILED") { exit 1 }
+          if ($code -ne 0 -or ($out | Select-String -SimpleMatch -CaseSensitive "FAILED")) { exit 1 }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python tests
+        run: python -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+      - name: run_windows.bat sets up Python and starts the camera script
+        shell: cmd
+        run: |
+          call gesture\run_windows.bat --help > run_windows.log 2>&1
+          type run_windows.log
+          findstr /C:"usage: hand_control.py" run_windows.log
       - name: Package
         shell: pwsh
         run: |
@@ -60,7 +76,8 @@ jobs:
           New-Item -ItemType Directory -Force $d, "$d/gesture" | Out-Null
           Copy-Item build/Release/Tetris.exe $d
           Copy-Item -Recurse build/Release/assets $d
-          Copy-Item gesture/*.py, gesture/requirements.txt, gesture/run_windows.bat "$d/gesture"
+          Get-ChildItem gesture/*.py -Exclude test_*.py | Copy-Item -Destination "$d/gesture"
+          Copy-Item gesture/requirements.txt, gesture/run_windows.bat "$d/gesture"
           Copy-Item packaging/windows/play.bat, packaging/windows/README.txt $d
           Compress-Archive -Path $d -DestinationPath dist/TetrisPlusPlus-windows.zip
       - uses: actions/upload-artifact@v4

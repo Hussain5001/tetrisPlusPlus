@@ -12,9 +12,10 @@ git submodule update --init            # raylib + nlohmann/json live in vendor/
 cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ./build/Tetris                         # play
 ./build/Tetris --gestures              # also launch gesture/hand_control.py
-./build/Tetris --test                  # C++ unit tests (all lines should say "passed")
+./build/Tetris --test                  # C++ tests; non-zero exit code if any check fails
+xvfb-run -a python3 tests/smoke_test.py build/Tetris   # end-to-end: plays the game via UDP
 ./build/Tetris --gesture-bind 0.0.0.0  # accept gestures from another machine (Windows → WSL)
-python3 -m unittest gesture/test_gestures.py
+python3 -m unittest gesture/test_gestures.py gesture/test_hand_control.py
 ```
 
 Linux needs `libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`.
@@ -61,8 +62,13 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
   through `Action`, never through raw key checks in game logic.
 - `GestureSource.cpp` must not include `raylib.h`, because it clashes with `winsock2.h` on Windows.
 - Don't copy `Game`/`Board` objects (they own raw memory); `App` holds the game in a `unique_ptr`.
-- Keep `./build/Tetris --test` and the Python tests passing, and extend them when changing logic
-  (`src/UnitTestExtras.h` holds the tests for levels, kicks, lock delay and high scores).
+- Every feature needs tests. C++ tests live in `src/tests/` (`TestGame`, `TestModes`, `TestData`,
+  `TestInput`) and use `test::check(ok, "name")` from `TestRunner.h`; `--test` fails if any check
+  fails. Keep logic testable without a window (e.g. `ui::Menu::handle`, `AutoRepeat`, file paths as
+  parameters) and never let tests touch the player's real files (use `test::temp_file`).
+  Python: `gesture/test_*.py` (fakes for cv2/mediapipe). New screens/flows: extend
+  `tests/smoke_test.py`. When a test passes first time, try breaking the code to make sure it
+  would catch the bug.
 - Look: lowercase terminal text, colours only from `ui::theme()`; test screens headlessly and
   check them with the CRT effect on.
 - The MediaPipe model (`gesture/models/`) is downloaded at runtime and git-ignored; don't commit it.

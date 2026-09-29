@@ -3,9 +3,9 @@
 #include "raylib.h"
 
 InputManager::InputManager(bool any_interface) {
-  repeat_keys_ = {{KEY_LEFT, Action::Left, 0, 0},
-                  {KEY_RIGHT, Action::Right, 0, 0},
-                  {KEY_DOWN, Action::SoftDrop, 0, 0}};
+  repeat_keys_ = {{KEY_LEFT, Action::Left, AutoRepeat()},
+                  {KEY_RIGHT, Action::Right, AutoRepeat()},
+                  {KEY_DOWN, Action::SoftDrop, AutoRepeat()}};
   gestures_.open(kGesturePort, any_interface);
 }
 
@@ -15,17 +15,8 @@ const std::vector<Action>& InputManager::poll() {
 
   // Movement keys: fire on press, then auto-repeat while held
   for (RepeatKey& k : repeat_keys_) {
-    if (IsKeyPressed(k.key)) {
-      actions_.push_back(k.action);
-      k.held_for = 0;
-      k.next_repeat = kDelayedAutoShift;
-    } else if (IsKeyDown(k.key)) {
-      k.held_for += dt;
-      while (k.held_for >= k.next_repeat) {
-        actions_.push_back(k.action);
-        k.next_repeat += kAutoRepeatRate;
-      }
-    }
+    int count = k.repeat.update(IsKeyPressed(k.key), IsKeyDown(k.key), dt);
+    for (int i = 0; i < count; i++) actions_.push_back(k.action);
   }
 
   // One-shot keys

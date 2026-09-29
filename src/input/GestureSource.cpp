@@ -110,6 +110,31 @@ void GestureSource::poll(std::vector<Action>& out) {
   }
 }
 
+bool GestureSource::send_to_local(int port, const std::string& data) {
+#ifdef _WIN32
+  WSADATA wsa;
+  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return false;
+  SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s == INVALID_SOCKET) return false;
+#else
+  int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s < 0) return false;
+#endif
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons((unsigned short)port);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  bool ok = sendto(s, data.data(), (int)data.size(), 0, (sockaddr*)&addr,
+                   sizeof(addr)) == (long)data.size();
+#ifdef _WIN32
+  closesocket(s);
+  WSACleanup();
+#else
+  close(s);
+#endif
+  return ok;
+}
+
 bool GestureSource::connected() const { return now() - last_packet_ < 3.0; }
 
 int GestureSource::target_column() const {

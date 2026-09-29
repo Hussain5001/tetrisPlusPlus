@@ -40,6 +40,9 @@ class GestureSource {
 
   Action last_action() const { return last_action_; }
 
+  // Sends `data` to 127.0.0.1:port over UDP (used by the tests)
+  static bool send_to_local(int port, const std::string& data);
+
   // Column the player's hand points at in position mode, or -1 if the
   // sidecar is not in position mode / the hand left the camera
   int target_column() const;

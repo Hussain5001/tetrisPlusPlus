@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "Action.h"
+#include "AutoRepeat.h"
 #include "GestureSource.h"
 
 // Collects actions from the keyboard and the gesture sidecar each frame.
@@ -23,14 +24,10 @@ class InputManager {
   struct RepeatKey {
     int key;
     Action action;
-    double held_for;
-    double next_repeat;
+    AutoRepeat repeat;
   };
 
   std::vector<Action> actions_;
   std::vector<RepeatKey> repeat_keys_;
   GestureSource gestures_;
-
-  static constexpr double kDelayedAutoShift = 0.17;  // seconds before repeat
-  static constexpr double kAutoRepeatRate = 0.05;    // seconds between repeats
 };

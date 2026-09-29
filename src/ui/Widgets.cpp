@@ -29,8 +29,7 @@ void Menu::move_focus(int step) {
   sound::play(Sfx::MenuMove);
 }
 
-int Menu::run(const std::vector<Action>& actions, float x, float y, float width,
-              float line_height, float font_size) {
+int Menu::handle(const std::vector<Action>& actions) {
   int count = (int)items.size();
   changed_row = -1;
   change = 0;
@@ -61,6 +60,14 @@ int Menu::run(const std::vector<Action>& actions, float x, float y, float width,
       }
     }
   }
+  return chosen;
+}
+
+int Menu::run(const std::vector<Action>& actions, float x, float y, float width,
+              float line_height, float font_size) {
+  int count = (int)items.size();
+  int chosen = handle(actions);
+  if (count == 0) return -1;
 
   const Theme& t = theme();
   Vector2 mouse = GetMousePosition();
