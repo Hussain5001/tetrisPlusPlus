@@ -56,7 +56,7 @@ def install_fakes():
 
 cv2_fake, vision_fake = install_fakes()
 import hand_control  # noqa: E402
-from test_gestures import FPS, fist, move, open_hand, still  # noqa: E402
+from test_gestures import FLICK, FPS, fist, hold, move, open_hand, pointing, still, tilt  # noqa: E402
 
 
 class FakeClock:
@@ -149,7 +149,7 @@ def run_main(frames, *args):
 class MainLoopTests(unittest.TestCase):
     def test_swipe_right_is_sent(self):
         frames = still(0.3, 0.5, 0.3) + move(0.3, 0.7, 0.5, 0.5, 0.2) + still(0.7, 0.5, 0.3)
-        messages, camera, landmarker, out = run_main(frames)
+        messages, camera, landmarker, out = run_main(frames, "--mode", "palm")
         self.assertIn("R", messages)
         self.assertNotIn("L", messages)
         self.assertIn("RIGHT", out)
@@ -160,7 +160,7 @@ class MainLoopTests(unittest.TestCase):
                   + move(0.7, 0.3, 0.5, 0.5, 0.2) + still(0.3, 0.5, 0.6)
                   + move(0.3, 0.3, 0.5, 0.85, 0.2) + still(0.3, 0.85, 0.4)
                   + still(0.3, 0.85, 1.0, fist))
-        messages, *_ = run_main(frames)
+        messages, *_ = run_main(frames, "--mode", "palm")
         commands = [m for m in messages if m != "K"]
         self.assertEqual(commands, ["R", "L", "H", "C"])
 
@@ -181,15 +181,46 @@ class MainLoopTests(unittest.TestCase):
     def test_sensitivity(self):
         # A small, slowish swipe: ignored normally, recognised when sensitive
         frames = still(0.4, 0.5, 0.3) + move(0.4, 0.5, 0.5, 0.5, 0.25) + still(0.5, 0.5, 0.3)
-        normal, *_ = run_main(frames)
-        sensitive, *_ = run_main(frames, "--sensitivity", "2")
+        normal, *_ = run_main(frames, "--mode", "palm")
+        sensitive, *_ = run_main(frames, "--mode", "palm", "--sensitivity", "2")
         self.assertNotIn("R", normal)
         self.assertIn("R", sensitive)
 
     def test_no_vertical(self):
         frames = still(0.5, 0.3, 0.3) + move(0.5, 0.5, 0.3, 0.7, 0.2) + still(0.5, 0.7, 0.3)
-        messages, *_ = run_main(frames, "--no-vertical")
+        messages, *_ = run_main(frames, "--mode", "palm", "--no-vertical")
         self.assertNotIn("H", messages)
+
+    def test_finger_flicks_are_the_default(self):
+        down = lambda x, y: pointing(x, y)  # noqa: E731
+        frames = (hold(0, 0.4) + tilt(0, -FLICK, 0.1) + tilt(-FLICK, 0, 0.1)
+                  + tilt(0, FLICK, 0.1) + tilt(FLICK, 0, 0.1) + hold(0, 0.3)
+                  + move(0.5, 0.5, 0.5, 0.7, 0.1, down) + still(0.5, 0.7, 0.3, down)
+                  + still(0.5, 0.7, 1.0, fist))
+        messages, _, _, out = run_main(frames)
+        commands = [m for m in messages if m != "K"]
+        self.assertEqual(commands, ["L", "R", "H", "C"])
+        self.assertIn("(flick mode)", out)
+
+    def test_point_mode_repeats_while_held(self):
+        frames = hold(0, 0.3) + tilt(0, FLICK, 0.05) + hold(FLICK, 1.0) + tilt(FLICK, 0, 0.05)
+        messages, *_ = run_main(frames, "--mode", "point")
+        self.assertGreaterEqual(messages.count("R"), 4)
+        self.assertNotIn("L", messages)
+
+    def test_finger_sensitivity(self):
+        # A small ~17 degree flick: ignored normally, recognised when sensitive
+        frames = hold(0, 0.4) + tilt(0, 0.3, 0.1) + hold(0.3, 0.3)
+        normal, *_ = run_main(frames)
+        sensitive, *_ = run_main(frames, "--sensitivity", "1.5")
+        self.assertNotIn("R", normal)
+        self.assertIn("R", sensitive)
+
+    def test_old_swipe_mode_name_still_works(self):
+        frames = still(0.3, 0.5, 0.3) + move(0.3, 0.7, 0.5, 0.5, 0.2) + still(0.7, 0.5, 0.3)
+        messages, _, _, out = run_main(frames, "--mode", "swipe")
+        self.assertIn("R", messages)
+        self.assertIn("(palm mode)", out)
 
     def test_timestamps_always_increase(self):
         # MediaPipe's VIDEO mode rejects timestamps that don't increase
@@ -304,6 +335,13 @@ class SmallPieceTests(unittest.TestCase):
         detector.update(open_hand(0.5, 0.5), 0)
         hand_control.draw_preview(frame, open_hand(0.5, 0.5), detector, 30.0, ("LEFT", 0))
         hand_control.draw_preview(frame, None, detector, 0.0, None)
+        finger = hand_control.GestureDetector(mode="flick")
+        for i, lm in enumerate(hold(0, 0.2) + hold(FLICK, 0.1)):
+            finger.update(lm, i / FPS)
+        self.assertTrue(finger.debug["pointing"])
+        hand_control.draw_preview(frame, pointing(0.5, 0.5, FLICK), finger, 30.0, ("RIGHT", 0))
+        finger.debug["pointing"] = False
+        hand_control.draw_preview(frame, None, finger, 30.0, None)
 
 
 if __name__ == "__main__":
