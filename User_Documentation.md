@@ -25,11 +25,15 @@ The faint `[]` outline at the bottom of the board (the "ghost") shows where the 
 
 ### Hands-free controls
 Run `./build/Tetris --gestures` (after `pip install -r gesture/requirements.txt`) to play with your webcam:
-* Swipe left / right: move the block
-* Swipe down: force fall
-* Swipe up or pinch: rotate
+Point at the camera with your index finger (other fingers curled in):
+* Flick the finger left / right: move the block one column
+* Flick the pointing hand down: force fall
+* Pinch (thumb to index fingertip): rotate
 * Hold a fist: pause / select in menus
-* Position mode (`python3 gesture/hand_control.py --mode position`): the block follows your hand sideways
+* Point mode (`--mode point`): tilt the finger and hold it to keep moving
+* Palm mode (`--mode palm`): the original open-hand swipes
+* Position mode (`--mode position`): the block follows your hand sideways
+* Press `m` in the camera window to switch modes
 
 See the README for tuning tips.
 

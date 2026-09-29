@@ -11,10 +11,13 @@ MediaPipe and a hand model, which takes a minute or two; a minimised
 opens and the game's HAND CONTROL box turns on.
 
 Gestures
-  swipe left / right      move
-  swipe down              hard drop
-  swipe up or pinch       rotate
+  Point at the camera with your index finger (other fingers curled in):
+  flick finger left/right move one column
+  flick the hand down     hard drop
+  pinch (thumb to tip)    rotate
   hold a fist             pause / select in menus
+  Press m in the camera window to switch to point-and-hold, palm or
+  position mode.
 
 Keyboard
   left / right            move (hold to repeat)

@@ -170,14 +170,17 @@ class PositionModeTests(unittest.TestCase):
 
 # ------------------------------------------------------------ index finger
 
-def pointing(cx, cy, tilt=0.0, size=0.15, curl=0.0, pinched=False):
+def pointing(cx, cy, tilt=0.0, size=0.15, curl=0.0, pinched=False, length=0.8):
     """A hand pointing with the index finger. tilt: radians, 0 = straight up,
     positive = to the right (as seen on screen). curl: 0 = finger out,
-    1 = curled into a fist."""
+    1 = curled into a fist. length: how long the finger looks (shorter when
+    it points towards the camera)."""
     pts = fist(cx, cy, size)
     mcp = pts[5]
     d = (math.sin(tilt), -math.cos(tilt))
-    out = [(mcp[0] + f * size * d[0], mcp[1] + f * size * d[1]) for f in (0.35, 0.6, 0.8)]
+    k = length / 0.8
+    out = [(mcp[0] + f * k * size * d[0], mcp[1] + f * k * size * d[1])
+           for f in (0.35, 0.6, 0.8)]
     for i, (x, y) in enumerate(out):
         cx_, cy_ = fist(cx, cy, size)[6 + i]
         pts[6 + i] = (x + (cx_ - x) * curl, y + (cy_ - y) * curl)
@@ -346,6 +349,15 @@ class FingerDropRotatePauseTests(unittest.TestCase):
         curl = [pointing(0.5, 0.5, curl=i / 5) for i in range(1, 6)]
         frames = hold(0, 0.4) + curl + still(0.5, 0.5, 1.0, fist)
         self.assertEqual(run(GestureDetector(), frames), ["C"])
+
+    def test_poking_towards_the_camera_does_not_drop(self):
+        # The fingertip jumps down on screen, but the hand stays put. With a
+        # sensitive setting a fingertip-based drop would fire here.
+        cfg = Config()
+        cfg.drop_speed = 3.5 / 1.5  # --sensitivity 1.5
+        poke = [pointing(0.5, 0.5, length=L) for L in (0.46, 0.46, 0.46, 0.65, 0.8)]
+        frames = hold(0, 0.4) + poke + hold(0, 0.4)
+        self.assertEqual(run(GestureDetector(cfg), frames), [])
 
     def test_pinch_rotates_and_pauses_finger_moves(self):
         frames = hold(0, 0.3) + hold(0, 0.3, pinched=True) + hold(FLICK, 0.3, pinched=True) \
