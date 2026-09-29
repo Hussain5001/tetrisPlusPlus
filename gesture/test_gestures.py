@@ -469,6 +469,12 @@ class FingerDropRotatePauseTests(unittest.TestCase):
             frames = hold(0, 0.3) + pinch_down + release + hold(0, 0.4)
             self.assertEqual(run(GestureDetector(mode=mode), frames), ["U"], mode)
 
+    def test_finger_swinging_back_after_a_pinch_is_not_a_swipe(self):
+        # the finger leans over to the thumb, then swings back on release
+        lean = [pointing(0.5, 0.5, -FLICK * c, pinched=c > 0.5) for c in (0.3, 0.6, 1, 1, 1, 1, 1)]
+        frames = hold(0, 0.3) + lean + [pointing(0.5, 0.5, -FLICK)] + tilt(-FLICK, 0, 0.1) + hold(0, 0.4)
+        self.assertEqual(run(GestureDetector(), frames), ["U"])
+
     def test_open_palm_pauses(self):
         for mode in ("flick", "point"):
             frames = rest(0.5, 0.3) + still(0.5, 0.5, 2.0) + rest(0.5, 0.3)
