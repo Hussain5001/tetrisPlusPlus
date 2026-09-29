@@ -111,34 +111,39 @@ The first run downloads the MediaPipe hand model (about 8 MB) to `gesture/models
 The "HAND CONTROL" box in the game turns green when the camera script is connected,
 and every recognised gesture is shown briefly over the board.
 
-Point at the camera with your **index finger**, with the other fingers curled in:
+Point your **index finger up** (like showing "1"), with the other fingers curled in:
 
 | Gesture | In game | In menus |
 |---|---|---|
-| Flick the finger left / right (tilt it ~25° and back) | move one column | move the selection |
-| Flick the pointing hand down | hard drop | select |
+| Swipe the finger left / right | move one column | move the selection |
+| Dip the finger down and straight up again (or swipe the hand down) | hard drop | select |
 | Pinch (thumb to index fingertip) | rotate | move the selection up |
-| Hold a fist for about half a second | pause | select |
+| Show an open palm and hold it still for a second | pause / resume | back |
+| Curl the finger, make a fist or relax your hand | nothing | nothing |
 
 There are four modes. Choose one with `--mode`, or press `m` in the camera window to switch:
 
 | Mode | Left / right |
 |---|---|
-| `flick` (default) | each quick flick of the finger moves one column |
+| `flick` (default) | each swipe of the finger (tilt it or move the hand) moves one column |
 | `point` | tilt the finger and **hold** it to keep moving, like holding an arrow key |
-| `palm` | the original open-hand swipes (`--mode swipe` also works) |
-| `position` | the piece follows your hand sideways |
+| `palm` | the original open-hand swipes, a held fist pauses / selects (`--mode swipe` also works) |
+| `position` | the piece follows your hand sideways, a held fist pauses / selects |
 
 Tips:
 
-- Only the finger's **angle** counts, not where your hand is, so small movements are enough and
-  moving your arm by accident does nothing.
-- Going back to your resting pose re-arms the next move, so you can flick left then right
-  straight away. Your natural resting angle is learned while you play.
-- The camera window shows **pointing: yes/no** and a tilt meter. The dot has to pass the blue
-  marks to move, and come back inside the grey marks to re-arm.
-- Tuning: `--sensitivity 1.3` makes smaller flicks count, and `--sensitivity 0.8` needs bigger
-  ones. `--no-vertical` turns off the drop flick. Thresholds are in `gesture/gestures.py` (`Config`).
+- Bringing your finger back after a swipe never counts, however fast. To go the other way, just
+  swipe past the point where the last swipe started: left, back to the middle, on to the right
+  gives left then right.
+- Resting is safe: a fist, a curled finger or a relaxed hand does nothing. The drop only fires
+  when a dipped finger points again within about half a second, so curling it to rest never drops.
+  Curling the finger also resets the swipe, so you can move your hand back to the middle.
+- Swipes are measured in hand sizes, so they work the same close to the camera or far away.
+  Slow drifts don't count.
+- The camera window shows **pointing: yes/no** and a meter of how far the fingertip has moved.
+  The dot has to pass the blue marks to move.
+- Tuning: `--sensitivity 1.3` makes smaller swipes and dips count, and `--sensitivity 0.8` needs
+  bigger ones. `--no-vertical` turns off the drop. Thresholds are in `gesture/gestures.py` (`Config`).
 - If the hand blurs for a frame or two during a quick move, the gesture still counts.
 - Good lighting and a plain background help MediaPipe the most.
 

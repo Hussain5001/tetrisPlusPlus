@@ -56,7 +56,8 @@ def install_fakes():
 
 cv2_fake, vision_fake = install_fakes()
 import hand_control  # noqa: E402
-from test_gestures import FLICK, FPS, fist, hold, move, open_hand, pointing, still, tilt  # noqa: E402
+from test_gestures import (FLICK, FPS, curl_to, fist, hold, move, open_hand,  # noqa: E402
+                           pointing, rest, still, swipe, tilt)
 
 
 class FakeClock:
@@ -191,16 +192,17 @@ class MainLoopTests(unittest.TestCase):
         messages, *_ = run_main(frames, "--mode", "palm", "--no-vertical")
         self.assertNotIn("H", messages)
 
-    def test_finger_flicks_are_the_default(self):
-        down = lambda x, y: pointing(x, y)  # noqa: E731
-        frames = (hold(0, 0.4) + tilt(0, -FLICK, 0.1) + tilt(-FLICK, 0, 0.1)
-                  + tilt(0, FLICK, 0.1) + tilt(FLICK, 0, 0.1) + hold(0, 0.3)
-                  + move(0.5, 0.5, 0.5, 0.7, 0.1, down) + still(0.5, 0.7, 0.3, down)
-                  + still(0.5, 0.7, 1.0, fist))
+    def test_finger_swipes_are_the_default(self):
+        frames = (rest(0.5, 0.4) + swipe(0.5, 0.4) + swipe(0.4, 0.5, 0.3) + rest(0.5, 0.3)
+                  + swipe(0.5, 0.6) + swipe(0.6, 0.5, 0.3) + rest(0.5, 0.3)
+                  + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
+                  + still(0.5, 0.5, 1.5, fist)                      # resting: nothing
+                  + still(0.5, 0.5, 1.5))                           # open palm: pause
         messages, _, _, out = run_main(frames)
         commands = [m for m in messages if m != "K"]
-        self.assertEqual(commands, ["L", "R", "H", "C"])
+        self.assertEqual(commands, ["L", "R", "H", "P"])
         self.assertIn("(flick mode)", out)
+        self.assertIn("PAUSE", out)
 
     def test_point_mode_repeats_while_held(self):
         frames = hold(0, 0.3) + tilt(0, FLICK, 0.05) + hold(FLICK, 1.0) + tilt(FLICK, 0, 0.05)
@@ -212,7 +214,7 @@ class MainLoopTests(unittest.TestCase):
         # A small ~17 degree flick: ignored normally, recognised when sensitive
         frames = hold(0, 0.4) + tilt(0, 0.3, 0.1) + hold(0.3, 0.3)
         normal, *_ = run_main(frames)
-        sensitive, *_ = run_main(frames, "--sensitivity", "1.5")
+        sensitive, *_ = run_main(frames, "--sensitivity", "2")
         self.assertNotIn("R", normal)
         self.assertIn("R", sensitive)
 
@@ -327,7 +329,7 @@ class ModelTests(unittest.TestCase):
 
 class SmallPieceTests(unittest.TestCase):
     def test_labels_cover_all_commands(self):
-        self.assertEqual(set(hand_control.LABELS), {"L", "R", "H", "U", "C"})
+        self.assertEqual(set(hand_control.LABELS), {"L", "R", "H", "U", "C", "P"})
 
     def test_preview_draws_without_errors(self):
         frame = SimpleNamespace(shape=(360, 640, 3))

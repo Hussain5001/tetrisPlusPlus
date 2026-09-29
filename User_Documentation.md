@@ -5,7 +5,7 @@ This is an introduction guide to our game of Tetris. It is a classic puzzle vide
 
 ## On building the code
 After you've successfully built the code, a Main Menu opens that gives you three play options (use the mouse, the arrow keys + Enter, or hand gestures to choose): 
-1. **Zen Mode** : This is a non-timed version where user can play for as long as they want until the game finishes. Before playing, a setup screen lets them choose the **start level** (1-10, which sets the speed and score multiplier), the **pace** (how many lines until the next level: chill 10, steady 8, rising 5, brutal 3), the phosphor colour, the ghost piece, the CRT effect and sound. From the pause menu (Esc, P, or hold a fist) they can **Quit** the game or **Save & Quit** if they'd like to save their progress, and continue later with **Continue Saved**.
+1. **Zen Mode** : This is a non-timed version where user can play for as long as they want until the game finishes. Before playing, a setup screen lets them choose the **start level** (1-10, which sets the speed and score multiplier), the **pace** (how many lines until the next level: chill 10, steady 8, rising 5, brutal 3), the phosphor colour, the ghost piece, the CRT effect and sound. From the pause menu (Esc, P, or hold an open palm still) they can **Quit** the game or **Save & Quit** if they'd like to save their progress, and continue later with **Continue Saved**.
 2. **Time Attack**: This is a 120 seconds timed game wherein the user has to score as much as they can in 120 seconds.
 3. **First Forty Lines Clearance**: In this, the user has to clear 40 lines as fast as they can. along with the timer, you get a **Lines** prompter which tells you the number of lines cleared so far. 
 
@@ -25,13 +25,14 @@ The faint `[]` outline at the bottom of the board (the "ghost") shows where the 
 
 ### Hands-free controls
 Run `./build/Tetris --gestures` (after `pip install -r gesture/requirements.txt`) to play with your webcam:
-Point at the camera with your index finger (other fingers curled in):
-* Flick the finger left / right: move the block one column
-* Flick the pointing hand down: force fall
+Point your index finger up (other fingers curled in):
+* Swipe the finger left / right: move the block one column (bringing it back doesn't count)
+* Dip the finger down and straight again, or swipe the hand down: force fall (select in menus)
 * Pinch (thumb to index fingertip): rotate
-* Hold a fist: pause / select in menus
+* Hold an open palm still for a second: pause / resume
+* A fist or a relaxed hand does nothing, so you can rest any time
 * Point mode (`--mode point`): tilt the finger and hold it to keep moving
-* Palm mode (`--mode palm`): the original open-hand swipes
+* Palm mode (`--mode palm`): the original open-hand swipes (a held fist pauses)
 * Position mode (`--mode position`): the block follows your hand sideways
 * Press `m` in the camera window to switch modes
 

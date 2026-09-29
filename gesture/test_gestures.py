@@ -125,18 +125,20 @@ class SwipeTests(unittest.TestCase):
 
 class PoseTests(unittest.TestCase):
     def test_pinch_rotates_once(self):
-        frames = still(0.5, 0.5, 0.3) + still(0.5, 0.5, 0.5, pinch) + still(0.5, 0.5, 0.3)
-        self.assertEqual(run(GestureDetector(), frames), ["U"])
+        for mode in MODES:
+            frames = still(0.5, 0.5, 0.3) + still(0.5, 0.5, 0.5, pinch) + still(0.5, 0.5, 0.3)
+            cmds = [c for c in run(GestureDetector(mode=mode), frames) if not c.startswith("@")]
+            self.assertEqual(cmds, ["U"], mode)
 
     def test_fist_hold_selects_once(self):
         self.assertTrue(GestureDetector.is_fist(fist(0.5, 0.5)))
         self.assertFalse(GestureDetector.is_fist(open_hand(0.5, 0.5)))
         frames = still(0.5, 0.5, 0.3) + still(0.5, 0.5, 1.5, fist)
-        self.assertEqual(run(GestureDetector(), frames), ["C"])
+        self.assertEqual(run(GestureDetector(mode="palm"), frames), ["C"])
 
     def test_short_fist_does_nothing(self):
         frames = still(0.5, 0.5, 0.3) + still(0.5, 0.5, 0.2, fist) + still(0.5, 0.5, 0.3)
-        self.assertEqual(run(GestureDetector(), frames), [])
+        self.assertEqual(run(GestureDetector(mode="palm"), frames), [])
 
 
 class PositionModeTests(unittest.TestCase):
@@ -206,7 +208,21 @@ def run_timed(detector, frames, t0=0.0):
     return out
 
 
-FLICK = 0.6  # radians (~34 deg), past the ~22 deg threshold
+FLICK = 0.6  # radians (~34 deg), past point mode's ~22 deg threshold
+
+
+def swipe(x0, x1, seconds=0.15, y=0.5):
+    """The pointing hand moving sideways (the fingertip moves with it)."""
+    return move(x0, x1, y, y, seconds, pointing)[1:]
+
+
+def rest(x, seconds, y=0.5):
+    return still(x, y, seconds, pointing)
+
+
+def curl_to(c0, c1, seconds, cx=0.5, cy=0.5):
+    n = max(int(seconds * FPS), 1)
+    return [pointing(cx, cy, curl=c0 + (c1 - c0) * i / n) for i in range(1, n + 1)]
 
 
 class PointingPoseTests(unittest.TestCase):
@@ -218,9 +234,15 @@ class PointingPoseTests(unittest.TestCase):
         self.assertFalse(GestureDetector.is_pointing(fist(0.5, 0.5)))
         self.assertFalse(GestureDetector.is_pointing(pointing(0.5, 0.5, curl=1.0)))
 
-    def test_open_palm_does_nothing_in_finger_modes(self):
+    def test_open_palm_is_recognised(self):
+        self.assertTrue(GestureDetector.is_open_palm(open_hand(0.5, 0.5)))
+        self.assertFalse(GestureDetector.is_open_palm(fist(0.5, 0.5)))
+        self.assertFalse(GestureDetector.is_open_palm(pointing(0.5, 0.5)))
+
+    def test_open_palm_swipes_do_nothing_in_finger_modes(self):
         for mode in ("flick", "point"):
-            frames = still(0.3, 0.5, 0.3) + move(0.3, 0.7, 0.5, 0.5, 0.2) + still(0.7, 0.5, 0.3)
+            frames = still(0.3, 0.5, 0.3) + move(0.3, 0.7, 0.5, 0.5, 0.2) + still(0.7, 0.5, 0.3) \
+                + move(0.7, 0.7, 0.5, 0.8, 0.15) + still(0.7, 0.8, 0.3)
             self.assertEqual(run(GestureDetector(mode=mode), frames), [], mode)
 
     def test_modes(self):
@@ -238,64 +260,115 @@ class PointingPoseTests(unittest.TestCase):
 
 
 class FlickTests(unittest.TestCase):
-    def test_flick_right_and_left(self):
-        right = hold(0, 0.4) + tilt(0, FLICK, 0.1) + hold(FLICK, 0.4)
-        self.assertEqual(run(GestureDetector(), right), ["R"])
-        left = hold(0, 0.4) + tilt(0, -FLICK, 0.1) + hold(-FLICK, 0.4)
-        self.assertEqual(run(GestureDetector(), left), ["L"])
+    """Flick mode: swipe the pointing finger left / right."""
 
-    def test_going_back_to_rest_fires_nothing(self):
-        frames = hold(0, 0.4) + tilt(0, FLICK, 0.1) + tilt(FLICK, 0, 0.1) + hold(0, 0.5)
-        self.assertEqual(run(GestureDetector(), frames), ["R"])
+    def test_swipe_right_and_left(self):
+        self.assertEqual(run(GestureDetector(), rest(0.5, 0.3) + swipe(0.5, 0.6) + rest(0.6, 0.4)), ["R"])
+        self.assertEqual(run(GestureDetector(), rest(0.5, 0.3) + swipe(0.5, 0.4) + rest(0.4, 0.4)), ["L"])
 
-    def test_left_then_right_without_waiting(self):
-        frames = (hold(0, 0.4) + tilt(0, -FLICK, 0.1) + tilt(-FLICK, 0, 0.1)
-                  + tilt(0, FLICK, 0.1) + tilt(FLICK, 0, 0.1) + hold(0, 0.3))
-        self.assertEqual(run(GestureDetector(), frames), ["L", "R"])
+    def test_tilting_the_finger_is_a_swipe_too(self):
+        self.assertEqual(run(GestureDetector(), hold(0, 0.3) + tilt(0, FLICK, 0.1) + hold(FLICK, 0.4)), ["R"])
+        self.assertEqual(run(GestureDetector(), hold(0, 0.3) + tilt(0, -FLICK, 0.1) + hold(-FLICK, 0.4)), ["L"])
 
-    def test_repeated_flicks(self):
-        frames = hold(0, 0.4)
-        for _ in range(3):
-            frames += tilt(0, FLICK, 0.1) + tilt(FLICK, 0, 0.1)
-        self.assertEqual(run(GestureDetector(), frames), ["R", "R", "R"])
+    def test_swipe_fires_early(self):
+        d = GestureDetector()
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.7, 0.25)
+        fired_at = next(i for i, lm in enumerate(frames) if d.update(lm, i / FPS)) / FPS - 0.3
+        self.assertLess(fired_at, 0.15)
 
-    def test_slow_drift_is_not_a_flick(self):
-        frames = hold(0, 0.4) + tilt(0, FLICK, 1.5) + hold(FLICK, 0.5)
-        self.assertEqual(run(GestureDetector(), frames), [])
-
-    def test_jitter_is_ignored(self):
-        frames = hold(0, 0.3)
-        for i in range(40):
-            frames += hold(0.12 if i % 2 else -0.12, 1 / FPS)  # under half the threshold
-        self.assertEqual(run(GestureDetector(), frames), [])
-
-    def test_moving_the_whole_hand_is_not_a_flick(self):
-        shape = lambda x, y: pointing(x, y)  # noqa: E731
-        frames = still(0.3, 0.5, 0.3, shape) + move(0.3, 0.7, 0.5, 0.5, 0.2, shape) \
-            + still(0.7, 0.5, 0.3, shape) + move(0.7, 0.3, 0.5, 0.5, 0.2, shape)
-        self.assertEqual(run(GestureDetector(), frames), [])
-
-    def test_a_tilted_resting_finger_is_learned(self):
-        # Someone whose "straight" finger leans right
-        frames = hold(0.45, 0.6) + tilt(0.45, -0.15, 0.1) + hold(-0.15, 0.3)
+    def test_bringing_the_finger_back_is_not_a_swipe(self):
+        # fast and slow returns, straight away or after waiting at the side
+        for wait in (0.0, 1.0):
+            for back in (0.1, 0.5):
+                frames = rest(0.5, 0.3) + swipe(0.5, 0.6) + rest(0.6, wait) + swipe(0.6, 0.5, back) \
+                    + rest(0.5, 0.4)
+                self.assertEqual(run(GestureDetector(), frames), ["R"], (wait, back))
+        frames = hold(0, 0.3) + tilt(0, -FLICK, 0.1) + tilt(-FLICK, 0, 0.1) + hold(0, 0.4)
         self.assertEqual(run(GestureDetector(), frames), ["L"])
 
-    def test_resting_pose_drifting_is_followed(self):
-        # The finger slowly leans right over a few seconds (past where a
-        # fixed rest pose would call it "tilted"); a flick further right
-        # must still work afterwards
-        frames = hold(0, 0.3) + tilt(0, 0.45, 3.0) + hold(0.45, 1.0) \
-            + tilt(0.45, 1.1, 0.1) + hold(1.1, 0.3)
+    def test_repeated_swipes(self):
+        frames = rest(0.5, 0.3)
+        for _ in range(3):
+            frames += swipe(0.5, 0.6) + swipe(0.6, 0.5)
+        self.assertEqual(run(GestureDetector(), frames + rest(0.5, 0.3)), ["R", "R", "R"])
+        frames = hold(0, 0.3)
+        for _ in range(3):
+            frames += tilt(0, -FLICK, 0.1) + tilt(-FLICK, 0, 0.1)
+        self.assertEqual(run(GestureDetector(), frames), ["L", "L", "L"])
+
+    def test_left_then_right(self):
+        # back to the middle, then on to the right, without stopping
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.4) + swipe(0.4, 0.5) + swipe(0.5, 0.6) + rest(0.6, 0.3)
+        self.assertEqual(run(GestureDetector(), frames), ["L", "R"])
+        # one swing from the left straight across to the right
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.4) + swipe(0.4, 0.6, 0.25) + rest(0.6, 0.3)
+        self.assertEqual(run(GestureDetector(), frames), ["L", "R"])
+
+    def test_two_swipes_then_one_return(self):
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.42) + rest(0.42, 0.2) + swipe(0.42, 0.34) \
+            + rest(0.34, 0.3) + swipe(0.34, 0.5, 0.3) + rest(0.5, 0.3)
+        self.assertEqual(run(GestureDetector(), frames), ["L", "L"])
+
+    def test_one_long_swipe_counts_once(self):
+        frames = rest(0.3, 0.3) + swipe(0.3, 0.7, 0.5) + rest(0.7, 0.3)
         self.assertEqual(run(GestureDetector(), frames), ["R"])
 
-    def test_short_tracking_gap_keeps_the_flick(self):
-        # Two blurred frames in the middle of the flick
-        frames = hold(0, 0.4) + [None, None] + hold(FLICK, 0.4)
+    def test_slow_drift_and_jitter_do_nothing(self):
+        self.assertEqual(run(GestureDetector(), rest(0.4, 0.3) + swipe(0.4, 0.6, 2.0)), [])
+        frames = rest(0.5, 0.3)
+        for i in range(40):
+            frames += rest(0.5 + (0.01 if i % 2 else -0.01), 1 / FPS)
+        self.assertEqual(run(GestureDetector(), frames), [])
+
+    def test_diagonal_is_not_a_side_swipe(self):
+        frames = rest(0.5, 0.3) + move(0.5, 0.56, 0.5, 0.35, 0.15, pointing)[1:] + rest(0.56, 0.3, 0.35)
+        self.assertEqual(run(GestureDetector(), frames), [])
+
+    def test_small_or_far_away_hand(self):
+        small = lambda x, y: pointing(x, y, size=0.06)  # noqa: E731
+        frames = still(0.5, 0.5, 0.3, small) + move(0.5, 0.54, 0.5, 0.5, 0.15, small) \
+            + still(0.54, 0.5, 0.3, small)
+        self.assertEqual(run(GestureDetector(), frames), ["R"])
+
+    def test_curling_the_finger_lets_you_move_your_hand_back(self):
+        # swipe right, curl the finger (rest), put the hand back in the
+        # middle, point again: the next swipe right works straight away
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.6) + rest(0.6, 0.2) \
+            + still(0.6, 0.5, 0.6, fist) + still(0.5, 0.5, 0.3, fist) + rest(0.5, 0.3) \
+            + swipe(0.5, 0.6) + rest(0.6, 0.3)
+        self.assertEqual(run(GestureDetector(), frames), ["R", "R"])
+
+    def test_short_tracking_gap_keeps_the_swipe(self):
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.53, 0.05) + [None, None] + swipe(0.57, 0.6, 0.05) \
+            + rest(0.6, 0.3)
         self.assertEqual(run(GestureDetector(), frames), ["R"])
 
     def test_long_tracking_gap_starts_over(self):
-        frames = hold(0, 0.4) + [None] * 8 + hold(FLICK, 0.4)
+        frames = rest(0.5, 0.4) + [None] * 8 + rest(0.6, 0.4)
         self.assertEqual(run(GestureDetector(), frames), [])
+
+
+class NoisyTrackingTests(unittest.TestCase):
+    """Real landmarks wobble by a few pixels every frame."""
+
+    @staticmethod
+    def noisy(frames, amount=0.004, seed=1):
+        import random
+        rng = random.Random(seed)
+        return [[(x + rng.uniform(-amount, amount), y + rng.uniform(-amount, amount))
+                 for x, y in lm] for lm in frames]
+
+    def test_resting_finger_sends_nothing(self):
+        for mode in ("flick", "point"):
+            self.assertEqual(run(GestureDetector(mode=mode), self.noisy(rest(0.5, 10))), [], mode)
+
+    def test_swipes_and_drops_still_work(self):
+        frames = rest(0.5, 0.4) + swipe(0.5, 0.6) + rest(0.6, 0.3) + swipe(0.6, 0.5, 0.4) \
+            + rest(0.5, 0.4) + swipe(0.5, 0.4) + rest(0.4, 0.3) + swipe(0.4, 0.5, 0.4) \
+            + rest(0.5, 0.4) + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
+        for seed in range(5):
+            self.assertEqual(run(GestureDetector(), self.noisy(frames, seed=seed)),
+                             ["R", "L", "H"], seed)
 
 
 class PointModeTests(unittest.TestCase):
@@ -328,41 +401,90 @@ class PointModeTests(unittest.TestCase):
             + tilt(-FLICK, FLICK, 0.1) + hold(FLICK, 0.1)
         self.assertEqual(run(GestureDetector(mode="point"), frames), ["L", "R"])
 
+    def test_a_tilted_resting_finger_is_learned(self):
+        frames = hold(0.45, 0.6) + tilt(0.45, -0.15, 0.1) + hold(-0.15, 0.3)
+        self.assertEqual(run(GestureDetector(mode="point"), frames), ["L"])
+
+    def test_moving_the_whole_hand_does_not_move(self):
+        frames = rest(0.5, 0.3) + swipe(0.5, 0.6) + rest(0.6, 0.3) + swipe(0.6, 0.5) + rest(0.5, 0.3)
+        self.assertEqual(run(GestureDetector(mode="point"), frames), [])
+
 
 class FingerDropRotatePauseTests(unittest.TestCase):
-    shape = staticmethod(lambda x, y: pointing(x, y))
-
-    def test_flick_down_drops(self):
+    def test_tapping_the_finger_down_drops(self):
         for mode in ("flick", "point"):
-            frames = still(0.5, 0.4, 0.3, self.shape) + move(0.5, 0.5, 0.4, 0.6, 0.1, self.shape) \
-                + still(0.5, 0.6, 0.4, self.shape)
+            frames = hold(0, 0.3) + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
             self.assertEqual(run(GestureDetector(mode=mode), frames), ["H"], mode)
 
-    def test_slow_move_down_and_flick_up_do_nothing(self):
-        slow = still(0.5, 0.4, 0.3, self.shape) + move(0.5, 0.5, 0.4, 0.6, 1.5, self.shape)
-        self.assertEqual(run(GestureDetector(), slow), [])
-        up = still(0.5, 0.6, 0.3, self.shape) + move(0.5, 0.5, 0.6, 0.4, 0.1, self.shape) \
-            + still(0.5, 0.4, 0.3, self.shape)
-        self.assertEqual(run(GestureDetector(), up), [])
+    def test_the_tap_fires_when_the_finger_is_back(self):
+        d = GestureDetector()
+        frames = hold(0, 0.3) + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
+        events = run_timed(d, frames)
+        self.assertEqual(len(events), 1)
+        self.assertLess(events[0][0], 0.3 + 0.2 + 0.15)
 
-    def test_curling_into_a_fist_pauses_without_dropping(self):
-        curl = [pointing(0.5, 0.5, curl=i / 5) for i in range(1, 6)]
-        frames = hold(0, 0.4) + curl + still(0.5, 0.5, 1.0, fist)
-        self.assertEqual(run(GestureDetector(), frames), ["C"])
+    def test_swiping_the_hand_down_drops(self):
+        for mode in ("flick", "point"):
+            frames = rest(0.5, 0.3, 0.4) + move(0.5, 0.5, 0.4, 0.5, 0.1, pointing)[1:] \
+                + rest(0.5, 0.4, 0.5)
+            self.assertEqual(run(GestureDetector(mode=mode), frames), ["H"], mode)
+
+    def test_one_drop_per_movement(self):
+        frames = rest(0.5, 0.3, 0.3) + move(0.5, 0.5, 0.3, 0.7, 0.3, pointing)[1:] + rest(0.5, 0.4, 0.7)
+        self.assertEqual(run(GestureDetector(), frames), ["H"])
+
+    def test_two_taps_drop_twice(self):
+        frames = hold(0, 0.3)
+        for _ in range(2):
+            frames += curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.3)
+        self.assertEqual(run(GestureDetector(), frames), ["H", "H"])
+
+    def test_resting_the_hand_does_nothing(self):
+        # curl the finger into a fist and leave it there, then point again
+        frames = hold(0, 0.3) + curl_to(0, 1, 0.15) + still(0.5, 0.5, 1.5, fist) \
+            + curl_to(1, 0, 0.2) + hold(0, 0.4)
+        self.assertEqual(run(GestureDetector(), frames), [])
+        # a fist doesn't pause/select in the finger modes
+        self.assertEqual(run(GestureDetector(mode="point"), still(0.5, 0.5, 2, fist)), [])
+
+    def test_slow_moves_and_moving_up_do_nothing(self):
+        slow = rest(0.5, 0.3, 0.4) + move(0.5, 0.5, 0.4, 0.6, 1.5, pointing)
+        self.assertEqual(run(GestureDetector(), slow), [])
+        up = rest(0.5, 0.3, 0.6) + move(0.5, 0.5, 0.6, 0.4, 0.1, pointing) + rest(0.5, 0.3, 0.4)
+        self.assertEqual(run(GestureDetector(), up), [])
+        slow_curl = hold(0, 0.3) + curl_to(0, 0.6, 1.5) + curl_to(0.6, 0, 0.2) + hold(0, 0.3)
+        self.assertEqual(run(GestureDetector(), slow_curl), [])
 
     def test_poking_towards_the_camera_does_not_drop(self):
-        # The fingertip jumps down on screen, but the hand stays put. With a
-        # sensitive setting a fingertip-based drop would fire here.
-        cfg = Config()
-        cfg.drop_speed = 3.5 / 1.5  # --sensitivity 1.5
-        poke = [pointing(0.5, 0.5, length=L) for L in (0.46, 0.46, 0.46, 0.65, 0.8)]
+        poke = [pointing(0.5, 0.5, length=L) for L in (0.6, 0.46, 0.46, 0.65, 0.8)]
         frames = hold(0, 0.4) + poke + hold(0, 0.4)
-        self.assertEqual(run(GestureDetector(cfg), frames), [])
+        self.assertEqual(run(GestureDetector(), frames), [])
 
-    def test_pinch_rotates_and_pauses_finger_moves(self):
-        frames = hold(0, 0.3) + hold(0, 0.3, pinched=True) + hold(FLICK, 0.3, pinched=True) \
-            + hold(0, 0.3)
-        self.assertEqual(run(GestureDetector(), frames), ["U"])
+    def test_pinch_rotates_without_moving_or_dropping(self):
+        # the index finger bends down and sideways to meet the thumb
+        pinch_down = [pointing(0.5, 0.5, 0.3 * c, curl=0.6 * c, pinched=c > 0.5)
+                      for c in (0.25, 0.5, 0.75, 1, 1, 1, 1, 1, 1)]
+        release = list(reversed(pinch_down))
+        for mode in ("flick", "point"):
+            frames = hold(0, 0.3) + pinch_down + release + hold(0, 0.4)
+            self.assertEqual(run(GestureDetector(mode=mode), frames), ["U"], mode)
+
+    def test_open_palm_pauses(self):
+        for mode in ("flick", "point"):
+            frames = rest(0.5, 0.3) + still(0.5, 0.5, 2.0) + rest(0.5, 0.3)
+            self.assertEqual(run(GestureDetector(mode=mode), frames), ["P"], mode)
+        # it has to be held for about a second
+        self.assertEqual(run(GestureDetector(), rest(0.5, 0.3) + still(0.5, 0.5, 0.7)), [])
+
+    def test_palm_pauses_only_when_held_still(self):
+        frames = still(0.2, 0.5, 0.2) + move(0.2, 0.8, 0.5, 0.5, 1.5)
+        self.assertEqual(run(GestureDetector(), frames), [])
+
+    def test_drop_can_be_disabled(self):
+        cfg = Config()
+        cfg.vertical_swipes = False
+        frames = hold(0, 0.3) + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
+        self.assertEqual(run(GestureDetector(cfg), frames), [])
 
 
 if __name__ == "__main__":

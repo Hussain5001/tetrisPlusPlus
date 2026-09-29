@@ -109,7 +109,7 @@ class TestInput {
     int nothing = menu.handle(acts({Action::Pause}));
     test::check(right && wraps && up && down, "menu focus moves and wraps");
     test::check(chosen == 3 && confirmed == 3 && nothing == -1,
-                "menu selects with enter, swipe down or a fist");
+                "menu selects with enter, a drop or a fist");
     ui::Menu empty;
     test::check(empty.handle(acts({Action::Confirm})) == -1, "an empty menu selects nothing");
   }

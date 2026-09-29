@@ -7,18 +7,21 @@ game over UDP (127.0.0.1:5005). Start the game first, then run:
     python3 gesture/hand_control.py                # flick mode (default)
     python3 gesture/hand_control.py --mode point   # point and hold
 
-Point at the camera with your index finger (other fingers curled in).
+Point your index finger up, like showing "1" (other fingers curled in).
 
 Modes
-    flick     flick the finger left / right   move one column
+    flick     swipe the finger left / right   move one column
     point     tilt the finger left / right    move, and keep moving while held
     palm      swipe an open hand              the original palm swipes
     position  move your hand sideways         the piece follows it
 
-In every mode
-    flick the pointing hand down   hard drop
-    pinch (thumb to index tip)     rotate
-    hold a fist                    pause / select in menus
+Finger modes (flick, point)
+    dip the finger down and back up  hard drop (or swipe the hand down)
+    pinch (thumb to index tip)       rotate
+    open palm, held for a second     pause
+    curl the finger / relax          nothing: rest any time
+    In menus: swipe to move, drop to select, pinch to go up.
+Palm and position modes: pinch rotates, a held fist pauses / selects.
 
 Keys in the preview window: m = next mode, q / Esc = quit
 """
@@ -54,7 +57,8 @@ HAND_CONNECTIONS = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7),
                     (7, 8), (5, 9), (9, 10), (10, 11), (11, 12), (9, 13),
                     (13, 14), (14, 15), (15, 16), (13, 17), (17, 18), (18, 19),
                     (19, 20), (0, 17)]
-LABELS = {"L": "LEFT", "R": "RIGHT", "H": "DROP", "U": "ROTATE", "C": "SELECT"}
+LABELS = {"L": "LEFT", "R": "RIGHT", "H": "DROP", "U": "ROTATE", "C": "SELECT",
+          "P": "PAUSE"}
 
 
 def ensure_model():
@@ -148,12 +152,13 @@ def draw_preview(frame, landmarks, detector, fps, flash):
 
 
 def draw_finger_meter(frame, detector):
-    """Shows whether the pointing pose is seen and how far the finger is
-    tilted, with the left/right thresholds, so you can tune --sensitivity."""
+    """Shows whether the pointing pose is seen and how far the fingertip has
+    swiped (flick) or tilted (point), with the left/right thresholds, so you
+    can tune --sensitivity."""
     h, w = frame.shape[:2]
     info = detector.debug
     pointing = info["pointing"]
-    cv2.putText(frame, "pointing: yes" if pointing else "pointing: no (curl the other fingers)",
+    cv2.putText(frame, "pointing: yes" if pointing else "pointing: no (point up, curl the others)",
                 (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                 (110, 230, 110) if pointing else (80, 80, 230), 2)
     cx, y, half = w // 2, h - 40, w // 3
@@ -191,7 +196,8 @@ def main():
     cfg.swipe_fire_speed /= args.sensitivity
     cfg.swipe_release_speed /= args.sensitivity
     cfg.finger_threshold /= args.sensitivity
-    cfg.drop_speed /= args.sensitivity
+    cfg.swipe_distance /= args.sensitivity
+    cfg.drop_distance /= args.sensitivity
     cfg.vertical_swipes = not args.no_vertical
     detector = GestureDetector(cfg, args.mode)
 
