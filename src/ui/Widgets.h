@@ -16,7 +16,8 @@ bool text_button(Rectangle r, const char* label, bool focused, float font_size =
 //       start level        < 5 >
 // Keyboard: up/down (or left/right on plain items) move, enter/space select,
 // left/right change values. Gestures: swipe left/right/up move or change
-// values, swipe down or a held fist selects. Mouse: hover and click.
+// values, a drop gesture (or a held fist in palm mode) selects. Mouse: hover
+// and click.
 class Menu {
  public:
   Menu() = default;

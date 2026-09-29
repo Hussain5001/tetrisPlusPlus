@@ -359,7 +359,7 @@ void App::pause_scene(const std::vector<Action>& actions) {
   draw_sidebar();
   Rectangle panel = {kWidth / 2 - 200.f, 180, 400, 110.f + pause_menu.items.size() * 44};
   draw_panel(panel, "paused");
-  ui::text_centered("swipe to choose, fist to select", kWidth / 2, panel.y + 58, 22,
+  ui::text_centered("swipe to choose, drop to select", kWidth / 2, panel.y + 58, 22,
                     ui::theme().dim);
   int choice = pause_menu.run(actions, panel.x + 60, panel.y + 96, 280, 44, 32);
   for (Action a : actions) {

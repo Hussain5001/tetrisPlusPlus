@@ -124,8 +124,8 @@ def main():
     game.send("D", "C", gap=0.4)     # down to "start", start
     time.sleep(2.2)                  # countdown
     game.send("H", "H", gap=0.4)
-    game.send("C", gap=0.6)          # fist = pause
-    game.send("D", "C", gap=0.4)     # pause menu: save & quit
+    game.send("P", gap=0.6)          # open palm = pause
+    game.send("D", "H", gap=0.4)     # pause menu: save & quit (a drop selects)
     game.wait_exit(10, "save & quit")
     save = load_json(os.path.join(workdir, "game_state.json"), "game_state.json")
     if save.get("level") != 5 or save.get("lines_per_level") != 5 or "game_grid" not in save:
