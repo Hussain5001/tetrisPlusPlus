@@ -4,17 +4,23 @@
 Reads the webcam, tracks one hand with MediaPipe and sends commands to the
 game over UDP (127.0.0.1:5005). Start the game first, then run:
 
-    python3 gesture/hand_control.py            # swipe mode
-    python3 gesture/hand_control.py --mode position
+    python3 gesture/hand_control.py                # flick mode (default)
+    python3 gesture/hand_control.py --mode point   # point and hold
 
-Gestures
-    swipe left / right     move the piece
-    swipe down             hard drop
-    swipe up  or  pinch    rotate
-    hold a fist            pause / select in menus
-    (position mode) move your hand sideways and the piece follows it
+Point at the camera with your index finger (other fingers curled in).
 
-Keys in the preview window: m = switch mode, q / Esc = quit
+Modes
+    flick     flick the finger left / right   move one column
+    point     tilt the finger left / right    move, and keep moving while held
+    palm      swipe an open hand              the original palm swipes
+    position  move your hand sideways         the piece follows it
+
+In every mode
+    flick the pointing hand down   hard drop
+    pinch (thumb to index tip)     rotate
+    hold a fist                    pause / select in menus
+
+Keys in the preview window: m = next mode, q / Esc = quit
 """
 from __future__ import annotations
 
@@ -37,7 +43,7 @@ except ImportError:
     sys.exit("Missing packages. Install them with:\n"
              "    pip install -r gesture/requirements.txt")
 
-from gestures import Config, GestureDetector
+from gestures import FINGER_MODES, MODE_ALIASES, MODES, Config, GestureDetector
 
 MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
              "hand_landmarker/float16/latest/hand_landmarker.task")
@@ -132,18 +138,43 @@ def draw_preview(frame, landmarks, detector, fps, flash):
             x0 = int((m + (1 - 2 * m) * detector.last_column / detector.cfg.columns) * w)
             x1 = int((m + (1 - 2 * m) * (detector.last_column + 1) / detector.cfg.columns) * w)
             cv2.rectangle(frame, (x0, 0), (x1, 12), (110, 200, 255), -1)
-    cv2.putText(frame, f"{detector.mode} mode  {fps:4.0f} fps  (m: switch, q: quit)",
+    if detector.mode in FINGER_MODES:
+        draw_finger_meter(frame, detector)
+    cv2.putText(frame, f"{detector.mode} mode  {fps:4.0f} fps  (m: next mode, q: quit)",
                 (10, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     if flash and time.time() - flash[1] < 0.4:
         cv2.putText(frame, flash[0], (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.4,
                     (110, 200, 255), 3)
 
 
+def draw_finger_meter(frame, detector):
+    """Shows whether the pointing pose is seen and how far the finger is
+    tilted, with the left/right thresholds, so you can tune --sensitivity."""
+    h, w = frame.shape[:2]
+    info = detector.debug
+    pointing = info["pointing"]
+    cv2.putText(frame, "pointing: yes" if pointing else "pointing: no (curl the other fingers)",
+                (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                (110, 230, 110) if pointing else (80, 80, 230), 2)
+    cx, y, half = w // 2, h - 40, w // 3
+    limit = info["threshold"] * 2  # the meter shows +-2x the threshold
+    cv2.line(frame, (cx - half, y), (cx + half, y), (120, 120, 120), 2)
+    for sign in (-1, 1):
+        tx = cx + int(sign * half / 2)          # the threshold marks
+        cv2.line(frame, (tx, y - 10), (tx, y + 10), (110, 200, 255), 2)
+        rx = cx + int(sign * half / 4)          # the "back at rest" zone
+        cv2.line(frame, (rx, y - 5), (rx, y + 5), (160, 160, 160), 1)
+    if pointing:
+        pos = max(-1.0, min(1.0, info["dx"] / limit))
+        cv2.circle(frame, (cx + int(pos * half), y), 8, (255, 255, 255), -1)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--camera", default="0", help="camera index or video file")
-    ap.add_argument("--mode", choices=["swipe", "position"], default="swipe")
+    ap.add_argument("--mode", choices=list(MODES) + list(MODE_ALIASES), default="flick",
+                    help="flick (default), point, palm or position")
     ap.add_argument("--host", default="127.0.0.1",
                     help="address of the game (the WSL IP when the game runs in WSL)")
     ap.add_argument("--port", type=int, default=5005)
@@ -153,12 +184,14 @@ def main():
     ap.add_argument("--sensitivity", type=float, default=1.0,
                     help=">1 = smaller/slower swipes trigger, <1 = need bigger swipes")
     ap.add_argument("--no-vertical", action="store_true",
-                    help="disable swipe up/down (use pinch to rotate, fist to pause)")
+                    help="no drop flick / up-down swipes (pinch still rotates, fist pauses)")
     args = ap.parse_args()
 
     cfg = Config()
     cfg.swipe_fire_speed /= args.sensitivity
     cfg.swipe_release_speed /= args.sensitivity
+    cfg.finger_threshold /= args.sensitivity
+    cfg.drop_speed /= args.sensitivity
     cfg.vertical_swipes = not args.no_vertical
     detector = GestureDetector(cfg, args.mode)
 
@@ -176,7 +209,7 @@ def main():
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     target = (args.host, args.port)
-    print(f"Sending gestures to udp://{args.host}:{args.port} ({args.mode} mode)")
+    print(f"Sending gestures to udp://{args.host}:{args.port} ({detector.mode} mode)")
 
     start = time.monotonic()
     last_keepalive = 0.0

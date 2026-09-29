@@ -40,7 +40,7 @@ sending UDP commands (see below) instead of fake key presses.
 | `src/ui/Widgets.*` | `ui::text_button` and `ui::Menu` (terminal-style list with optional values; keyboard, gesture and mouse) |
 | `assets/shaders/crt.fs` | CRT post-process shader applied to the 800x700 render texture (`time`, `strength` uniforms) |
 | `src/input/` | `Action` enum, `InputManager` (keyboard with DAS 170 ms / ARR 50 ms + gestures), `GestureSource` (non-blocking UDP on 127.0.0.1:5005) |
-| `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. All thresholds are in `Config` |
+| `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. Modes `flick` (default), `point` (index finger angle around the knuckle, learned resting angle, re-arm at rest), `palm` (old swipes, alias `swipe`), `position`. Pinch/fist/drop in all modes; tolerates `max_gap_frames` missing frames. All thresholds are in `Config` |
 | `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
 | `gesture/test_gestures.py` | Tests using synthetic hand poses and movements |
 | `build.bat`, `packaging/windows/` | Windows: build from source and start; `play.bat` + README.txt go into the downloadable zip |
@@ -66,7 +66,9 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
   `TestInput`) and use `test::check(ok, "name")` from `TestRunner.h`; `--test` fails if any check
   fails. Keep logic testable without a window (e.g. `ui::Menu::handle`, `AutoRepeat`, file paths as
   parameters) and never let tests touch the player's real files (use `test::temp_file`).
-  Python: `gesture/test_*.py` (fakes for cv2/mediapipe). New screens/flows: extend
+  Python: `gesture/test_*.py` (fakes for cv2/mediapipe; `pointing()`/`tilt()`/`hold()` build
+  synthetic finger poses). When planting bugs in Python, clear `gesture/__pycache__` or set
+  `PYTHONDONTWRITEBYTECODE=1`: a same-size edit within the same second can run stale bytecode. New screens/flows: extend
   `tests/smoke_test.py`. When a test passes first time, try breaking the code to make sure it
   would catch the bug.
 - Look: lowercase terminal text, colours only from `ui::theme()`; test screens headlessly and

@@ -104,31 +104,42 @@ pip install -r gesture/requirements.txt      # mediapipe + opencv (Python 3.9-3.
 ./build/Tetris --gestures                    # starts the game and the camera script
 # or run them separately:
 ./build/Tetris
-python3 gesture/hand_control.py              # add --mode position to try position mode
+python3 gesture/hand_control.py              # flick mode; add --mode point for point-and-hold
 ```
 
 The first run downloads the MediaPipe hand model (about 8 MB) to `gesture/models/`.
 The "HAND CONTROL" box in the game turns green when the camera script is connected,
 and every recognised gesture is shown briefly over the board.
 
+Point at the camera with your **index finger**, with the other fingers curled in:
+
 | Gesture | In game | In menus |
 |---|---|---|
-| Swipe left / right | move one column | move the selection |
-| Swipe down | hard drop | select |
-| Swipe up **or** pinch (thumb and index finger) | rotate | move the selection up |
+| Flick the finger left / right (tilt it ~25° and back) | move one column | move the selection |
+| Flick the pointing hand down | hard drop | select |
+| Pinch (thumb to index fingertip) | rotate | move the selection up |
 | Hold a fist for about half a second | pause | select |
 
-**Position mode** (`--mode position`, or press `m` in the camera window): the falling
-piece follows your hand sideways. It's faster than swiping for quick play; swipe down still drops.
+There are four modes. Choose one with `--mode`, or press `m` in the camera window to switch:
 
-Tips for responsive play:
+| Mode | Left / right |
+|---|---|
+| `flick` (default) | each quick flick of the finger moves one column |
+| `point` | tilt the finger and **hold** it to keep moving, like holding an arrow key |
+| `palm` | the original open-hand swipes (`--mode swipe` also works) |
+| `position` | the piece follows your hand sideways |
 
-- Swipes fire as soon as your hand speeds up, not when the movement ends. A short, quick
-  flick works better than a long sweep.
-- Bringing your hand back after a swipe is ignored, so you don't need to "reset" slowly.
-- Speeds are measured relative to the size of your hand, so it works at any distance.
-- Tuning: `--sensitivity 1.3` makes smaller swipes count, `--sensitivity 0.8` needs bigger
-  ones, and `--no-vertical` turns off up/down swipes. Thresholds are in `gesture/gestures.py` (`Config`).
+Tips:
+
+- Only the finger's **angle** counts, not where your hand is, so small movements are enough and
+  moving your arm by accident does nothing.
+- Going back to your resting pose re-arms the next move, so you can flick left then right
+  straight away. Your natural resting angle is learned while you play.
+- The camera window shows **pointing: yes/no** and a tilt meter. The dot has to pass the blue
+  marks to move, and come back inside the grey marks to re-arm.
+- Tuning: `--sensitivity 1.3` makes smaller flicks count, and `--sensitivity 0.8` needs bigger
+  ones. `--no-vertical` turns off the drop flick. Thresholds are in `gesture/gestures.py` (`Config`).
+- If the hand blurs for a frame or two during a quick move, the gesture still counts.
 - Good lighting and a plain background help MediaPipe the most.
 
 ### Playing from WSL
@@ -188,7 +199,8 @@ xvfb-run -a python3 tests/smoke_test.py build/Tetris   # plays the real game hea
   soft/hard drop and ghost, gravity, lock delay, wall kicks, game over, line clearing, Zen levels,
   pace, multiplier and save files, the pause-aware timer, Time Attack and First 40 scoring, high
   scores, profile, colours, key auto-repeat, the UDP gesture protocol and menu navigation.
-- **Python**: the gesture detector with simulated hand movements, and the camera script's main
+- **Python**: the gesture detector with simulated hand and finger movements (flicks, point-and-hold,
+  drift, jitter, blur gaps), and the camera script's main
   loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
   camera fallback, WSL help, model download).
 - **Smoke test**: starts the game and plays it through UDP gesture commands: Time Attack to game

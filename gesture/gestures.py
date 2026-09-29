@@ -6,6 +6,15 @@ be unit tested with synthetic hand movements (see test_gestures.py).
 Commands (one letter each, matching src/input/GestureSource.cpp):
     L / R  move left / right       H  hard drop     U  rotate
     C      pause / select          @N move the piece to column N (position mode)
+
+Modes:
+    flick     (default) point with your index finger; flick the finger left or
+              right to move one column, flick the fingertip down to drop
+    point     point with your index finger; tilt it left/right and hold to keep
+              moving (like holding an arrow key)
+    palm      the original open-hand swipes
+    position  the piece follows your hand sideways
+In every mode: pinch (thumb to index tip) rotates, a held fist pauses/selects.
 """
 from __future__ import annotations
 
@@ -21,6 +30,10 @@ MIDDLE_MCP, MIDDLE_PIP, MIDDLE_TIP = 9, 10, 12
 RING_MCP, RING_PIP, RING_TIP = 13, 14, 16
 PINKY_MCP, PINKY_PIP, PINKY_TIP = 17, 18, 20
 PALM = (WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, PINKY_MCP)
+
+MODES = ("flick", "point", "palm", "position")
+FINGER_MODES = ("flick", "point")
+MODE_ALIASES = {"swipe": "palm"}  # the old name of palm mode
 
 
 @dataclass
@@ -42,6 +55,18 @@ class Config:
     position_margin: float = 0.2       # ignore the outer 20% of the frame
     vertical_swipes: bool = True       # swipe down = drop, swipe up = rotate
 
+    # Index finger modes. Left/right is the finger's angle around its
+    # knuckle, so moving the whole hand doesn't count.
+    finger_threshold: float = 0.38     # radians (~22 deg) of tilt for left/right
+    finger_axis_ratio: float = 1.2     # a drop must be mostly downwards
+    flick_time: float = 0.25           # a flick reaches the threshold this fast
+    point_repeat_delay: float = 0.35   # point mode: first repeat after holding
+    point_repeat_rate: float = 0.12    # point mode: then one move per this long
+    baseline_time: float = 0.6         # how fast the resting pose is learned (s)
+    drop_speed: float = 3.5            # hand speed down for a drop flick
+    drop_window: float = 0.1           # seconds of history for that speed
+    max_gap_frames: int = 4            # frames the hand may vanish (blur)
+
 
 @dataclass
 class HandState:
@@ -54,6 +79,18 @@ class HandState:
     pinching: bool = False
     fist_since: float | None = None
     fist_fired: bool = False
+    missed_frames: int = 0
+    # Index finger modes
+    pointing: bool = False
+    pose_count: int = 0             # frames the pose has disagreed with `pointing`
+    baseline: float | None = None   # resting finger angle (radians)
+    prev_angle: float | None = None
+    finger_t: float | None = None
+    rest_time: float = -1e9         # last time the finger was near rest
+    zone: str = ""                  # "L"/"R" while tilted, "" once back at rest
+    next_repeat: float = 0.0
+    tip_history: deque = field(default_factory=lambda: deque(maxlen=64))
+    drop_armed: bool = True
 
 
 def _dist(a, b):
@@ -63,15 +100,21 @@ def _dist(a, b):
 class GestureDetector:
     """Feed it landmarks every frame; it returns the commands to send."""
 
-    def __init__(self, config: Config | None = None, mode: str = "swipe"):
+    def __init__(self, config: Config | None = None, mode: str = "flick"):
         self.cfg = config or Config()
-        self.mode = mode  # "swipe" or "position"
+        mode = MODE_ALIASES.get(mode, mode)
+        if mode not in MODES:
+            raise ValueError(f"unknown mode {mode!r}, use one of {MODES}")
+        self.mode = mode
         self.state = HandState()
         self.last_label = ""
         self.last_column: int | None = None
+        # What the finger modes see, for the camera preview
+        self.debug = {"pointing": False, "dx": 0.0, "threshold": self.cfg.finger_threshold}
 
     def toggle_mode(self):
-        self.mode = "position" if self.mode == "swipe" else "swipe"
+        """Cycles flick -> point -> palm -> position."""
+        self.mode = MODES[(MODES.index(self.mode) + 1) % len(MODES)]
         self.reset()
 
     def reset(self):
@@ -83,8 +126,13 @@ class GestureDetector:
         mirrored so moving your hand right moves x up), or None if no hand.
         t: timestamp in seconds. Returns a list of command strings."""
         if landmarks is None:
-            self.reset()
+            # A fast movement can blur the hand for a frame or two; only
+            # forget the movement if the hand is really gone
+            self.state.missed_frames += 1
+            if self.state.missed_frames > self.cfg.max_gap_frames:
+                self.reset()
             return []
+        self.state.missed_frames = 0
 
         cfg, st = self.cfg, self.state
         hand_size = max(_dist(landmarks[WRIST], landmarks[MIDDLE_MCP]), 1e-3)
@@ -103,7 +151,15 @@ class GestureDetector:
         out: list[str] = []
         out += self._pinch(landmarks, hand_size)
         out += self._fist(landmarks, t)
-        if st.fist_since is None:  # don't swipe while making a fist
+        if self.mode in FINGER_MODES:
+            self._update_pointing(landmarks, hand_size)
+            if st.pointing and not st.pinching and st.fist_since is None:
+                out += self._finger(landmarks, hand_size, t)
+                if cfg.vertical_swipes:
+                    out += self._drop(landmarks, hand_size, t)
+            else:
+                self._finger_idle(t)
+        elif st.fist_since is None:  # don't swipe while making a fist
             out += self._swipe(t)
         if self.mode == "position":
             out += self._position(px)
@@ -169,6 +225,141 @@ class GestureDetector:
         st.last_swipe_time = t
         st.last_swipe_dir = direction
         return [direction]
+
+    # ------------------------------------------------------------ index finger
+
+    @staticmethod
+    def is_pointing(lm, hand_size=None):
+        """Index finger stretched out, the other three fingers curled in
+        (the thumb can do anything)."""
+        wrist = lm[WRIST]
+        if hand_size is None:
+            hand_size = max(_dist(wrist, lm[MIDDLE_MCP]), 1e-3)
+        index_out = (_dist(lm[INDEX_TIP], wrist) > 1.05 * _dist(lm[INDEX_PIP], wrist)
+                     and _dist(lm[INDEX_TIP], lm[INDEX_MCP]) > 0.45 * hand_size)
+        if not index_out:
+            return False
+        for tip, pip in ((MIDDLE_TIP, MIDDLE_PIP), (RING_TIP, RING_PIP),
+                         (PINKY_TIP, PINKY_PIP)):
+            if _dist(lm[tip], wrist) > _dist(lm[pip], wrist):
+                return False
+        return True
+
+    def _update_pointing(self, lm, hand_size):
+        """Two frames in a row must agree before the pose changes."""
+        st = self.state
+        now = self.is_pointing(lm, hand_size)
+        if now == st.pointing:
+            st.pose_count = 0
+        else:
+            st.pose_count += 1
+            if st.pose_count >= 2:
+                st.pointing = now
+                st.pose_count = 0
+        self.debug["pointing"] = st.pointing
+
+    def _finger_idle(self, t):
+        """Not pointing (or pinching / fist): stop repeats; the next tilt
+        needs the finger back at rest first."""
+        st = self.state
+        st.finger_t = t
+        st.prev_angle = None
+        st.tip_history.clear()
+
+    @staticmethod
+    def finger_angle(lm):
+        """Angle of the index finger around its knuckle: 0 = straight up,
+        positive = leaning right on screen."""
+        return math.atan2(lm[INDEX_TIP][0] - lm[INDEX_MCP][0],
+                          lm[INDEX_MCP][1] - lm[INDEX_TIP][1])
+
+    def _finger(self, lm, hand_size, t):
+        cfg, st = self.cfg, self.state
+        angle = self.finger_angle(lm)
+        dt = 0.0 if st.finger_t is None else max(t - st.finger_t, 0.0)
+        st.finger_t = t
+        if st.baseline is None:
+            st.baseline = angle
+            st.rest_time = t
+            return []
+
+        T = cfg.finger_threshold
+        d = math.remainder(angle - st.baseline, math.tau)
+        self.debug["dx"] = d
+        self.debug["threshold"] = T
+
+        # Learn the resting angle slowly: near rest, or held still at a small
+        # tilt (people's "straight" finger drifts during a game)
+        speed = 0.0
+        if st.prev_angle is not None and dt > 0:
+            speed = abs(math.remainder(angle - st.prev_angle, math.tau)) / dt
+        st.prev_angle = angle
+        if abs(d) < T / 3:
+            st.rest_time = t
+        learn_time = None
+        if abs(d) < T / 3:
+            learn_time = cfg.baseline_time
+        elif not st.zone and abs(d) < 0.8 * T and speed < 0.25:
+            learn_time = 3 * cfg.baseline_time  # slower away from rest
+        if learn_time and dt > 0:
+            st.baseline += min(1.0, dt / learn_time) * d
+
+        tilted = ""
+        if abs(d) >= T:
+            tilted = "R" if d > 0 else "L"
+
+        out = []
+        if st.zone:
+            held = (d > 0) == (st.zone == "R") and abs(d) >= 0.6 * T
+            if abs(d) < T / 2:
+                st.zone = ""  # back at rest: ready for the next move
+            elif self.mode == "point":
+                if held and t >= st.next_repeat:
+                    out.append(st.zone)
+                    st.next_repeat += cfg.point_repeat_rate
+                elif tilted and tilted != st.zone:
+                    # swung straight across to the other side
+                    st.zone = tilted
+                    st.next_repeat = t + cfg.point_repeat_delay
+                    out.append(tilted)
+        elif tilted:
+            st.zone = tilted
+            if self.mode == "point":
+                st.next_repeat = t + cfg.point_repeat_delay
+                out.append(tilted)
+            elif t - st.rest_time <= cfg.flick_time:
+                out.append(tilted)  # a quick flick; slow drifts don't count
+        return out
+
+    def _drop(self, lm, hand_size, t):
+        """A quick downward flick of the pointing hand drops the piece. It
+        follows the index knuckle, not the fingertip, so curling the finger
+        into a fist doesn't count as a drop."""
+        cfg, st = self.cfg, self.state
+        if not self.is_pointing(lm, hand_size):
+            st.tip_history.clear()
+            return []
+        st.tip_history.append((t, lm[INDEX_MCP][0], lm[INDEX_MCP][1], hand_size))
+        newest = st.tip_history[-1]
+        oldest = newest
+        for sample in reversed(st.tip_history):
+            oldest = sample
+            if newest[0] - sample[0] >= cfg.drop_window:
+                break
+        span = newest[0] - oldest[0]
+        if span <= 0:
+            return []
+        vx = (newest[1] - oldest[1]) / span / hand_size
+        vy = (newest[2] - oldest[2]) / span / hand_size
+        if not st.drop_armed:
+            if math.hypot(vx, vy) < 0.4 * cfg.drop_speed:
+                st.drop_armed = True
+            return []
+        if vy >= cfg.drop_speed and vy >= cfg.finger_axis_ratio * abs(vx):
+            st.drop_armed = False
+            st.zone = ""
+            return ["H"]
+        return []
 
     def _pinch(self, lm, hand_size):
         st = self.state
