@@ -13,6 +13,8 @@
 //   L = left, R = right, D = soft drop, H = hard drop, U = rotate,
 //   P = pause, C = confirm, B = back, K = keep-alive (no action)
 //   @N = position mode: move the falling piece towards board column N
+//   Xn Yn = follow mode: where the hand is in its zone, n = 0..999 from the
+//           left / top edge (the game turns X into a column, see ColumnTracker)
 // Game -> sidecar (sent to whoever sends keep-alives):
 //   k = "the game is here", the answer to every K
 //   Q = quit: close the camera and exit
@@ -59,6 +61,17 @@ class GestureSource {
   // sidecar is not in position mode / the hand left the camera
   int target_column() const;
 
+  // Follow mode: true while the sidecar reports where the hand is (it stops
+  // when the hand leaves the picture)
+  bool pointer_live() const;
+
+  // True once a pointer has arrived, until quit_sidecar()
+  bool pointer_seen() const { return last_pointer_ > -1e8; }
+
+  // The hand's place in its zone: 0 = left / top edge, 1 = right / bottom
+  float pointer_x() const { return pointer_x_; }
+  float pointer_y() const { return pointer_y_; }
+
  private:
   long long sock_ = -1;  // SOCKET on Windows, int elsewhere
   double last_packet_ = -1e9;
@@ -67,6 +80,9 @@ class GestureSource {
   Action last_action_ = Action::Left;
   int target_column_ = -1;
   double last_target_ = -1e9;
+  float pointer_x_ = 0.5f;
+  float pointer_y_ = 0.5f;
+  double last_pointer_ = -1e9;
   // Socket addresses (sockaddr_in), kept as bytes so this header needs no
   // network includes: the sidecar, and the one that was just told to quit
   unsigned char peer_[32] = {};

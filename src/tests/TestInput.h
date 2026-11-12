@@ -3,6 +3,7 @@
 
 #include "../AppRules.h"
 #include "../input/AutoRepeat.h"
+#include "../input/ColumnTracker.h"
 #include "../input/GestureSource.h"
 #include "../ui/Widgets.h"
 #include "TestRunner.h"
@@ -26,6 +27,10 @@ class TestInput {
     hand_switch_while_starting();
     hand_switch_script_comes_and_goes();
     background_command();
+    gesture_pointer();
+    column_tracker();
+    hand_follow_and_keys();
+    hand_lost_pause();
   }
 
  private:
@@ -287,6 +292,78 @@ class TestInput {
     bool ok = command == "\"a b/run.bat\" --flag &";
 #endif
     test::check(ok, "the camera script is started in the background");
+  }
+
+  // Follow mode: the camera script reports where the hand is in its zone
+  void gesture_pointer() {
+    GestureSource g;
+    g.open(kPort);
+    bool none = !g.pointer_live() && !g.pointer_seen();
+    std::vector<Action> out = receive(g, "X250Y999H");
+    bool placed = g.pointer_live() && g.pointer_seen() && test::near(g.pointer_x(), 250 / 999.0, 1e-6) &&
+                  test::near(g.pointer_y(), 1.0, 1e-6);
+    bool with_drop = out.size() == 1 && out[0] == Action::HardDrop;
+    receive(g, "X5000");  // out of range: the edge
+    bool clamped = test::near(g.pointer_x(), 1.0, 1e-6) && test::near(g.pointer_y(), 1.0, 1e-6);
+    receive(g, "XY");     // no numbers: nothing changes
+    bool kept = test::near(g.pointer_x(), 1.0, 1e-6);
+    test::sleep_ms(350);
+    bool gone = !g.pointer_live() && g.pointer_seen();
+    test::check(none && placed && with_drop, "the hand's position arrives with the drop");
+    test::check(clamped && kept, "a pointer outside the zone stops at its edge");
+    test::check(gone, "the pointer goes when the hand leaves the picture");
+  }
+
+  void column_tracker() {
+    ColumnTracker tracker;
+    bool first = tracker.column() == -1 && tracker.update(0.05f) == 0;
+    bool middle = tracker.update(0.55f) == 5;
+    // 0.6 is the border between columns 5 and 6
+    bool holds = tracker.update(0.61f) == 5 && tracker.update(0.59f) == 5 &&
+                 tracker.update(0.62f) == 5;
+    bool moves = tracker.update(0.64f) == 6;
+    bool back = tracker.update(0.58f) == 6 && tracker.update(0.56f) == 5;
+    bool edges = tracker.update(1.0f) == 9 && tracker.update(-0.2f) == 0 &&
+                 tracker.update(1.7f) == 9;
+    tracker.reset();
+    bool fresh = tracker.column() == -1 && tracker.update(0.61f) == 6;
+    test::check(first && middle && moves && edges, "the hand's position picks the column");
+    test::check(holds && back && fresh, "a hand on the border between two columns doesn't flicker");
+  }
+
+  void hand_follow_and_keys() {
+    rules::HandFollow follow;
+    bool steers = follow.column(4, false) == 4 && follow.column(5, false) == 5;
+    // an arrow key moves the piece: the hand (still over column 5) lets it be
+    bool keys_win = follow.column(5, true) == -1 && follow.column(5, false) == -1;
+    // the hand moves to another column: it steers again
+    bool hand_back = follow.column(6, false) == 6 && follow.column(6, false) == 6;
+    bool no_hand = follow.column(-1, false) == -1 && follow.column(-1, true) == -1;
+    bool fresh = follow.column(5, false) == 5;
+    test::check(steers && no_hand && fresh, "the piece goes to the column under the hand");
+    test::check(keys_win && hand_back,
+                "after an arrow key the piece stays put until the hand moves on");
+  }
+
+  void hand_lost_pause() {
+    rules::HandLostPause lost;
+    bool keyboard_game = !lost.update(0, false, false) && !lost.update(60, false, false);
+    lost.update(61, true, false);  // a hand plays
+    bool short_gap = !lost.update(61.5, false, false) && !lost.update(62.4, false, false) &&
+                     !lost.update(62.5, true, false) && !lost.update(63.9, false, false);
+    bool pauses = lost.update(63.9 + rules::kHandLostDelay, false, false);
+    bool once = !lost.update(70, false, false);
+    test::check(keyboard_game && short_gap, "a short gap in hand tracking doesn't pause");
+    test::check(pauses && once, "the game pauses when the hand has left for a while");
+
+    rules::HandLostPause keys;
+    keys.update(0, true, false);
+    bool taken_over = !keys.update(0.5, false, true) && !keys.update(5, false, false);
+    test::check(taken_over, "going on with the keyboard doesn't pause");
+    keys.update(6, true, false);
+    keys.update(6.1, false, false);
+    keys.reset();  // a new game or a resume
+    test::check(!keys.update(20, false, false), "a new game forgets the old hand");
   }
 
   void focus_pause_rule() {

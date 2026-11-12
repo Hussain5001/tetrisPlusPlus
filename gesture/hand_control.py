@@ -6,26 +6,28 @@ game over UDP (127.0.0.1:5005). The game starts it for you when hand
 control is switched on (the H key), through gesture\\run_windows.bat. To run
 it yourself:
 
-    py gesture/hand_control.py                # flick mode (default)
-    py gesture/hand_control.py --mode point   # point and hold
+    py gesture/hand_control.py                # follow mode (default)
+    py gesture/hand_control.py --mode flick   # the older finger swipes
 
-Point your index finger up, like showing "1" (other fingers curled in).
+Follow mode: hold your open hand in front of the camera.
+    move the hand sideways           the piece goes to the column under it
+    pinch (thumb to index fingertip) rotate
+    close the hand into a fist       hard drop (open it again for the next)
+    take the hand away               the game pauses after a moment
+    In menus: pinch moves up, a fist selects.
+The grey box in the preview is the zone that stands for the whole board;
+press c to put its middle where your hand is. --reach makes it wider or
+narrower.
 
-Modes
-    flick     swipe the finger left / right   move one column
-    point     tilt the finger left / right    move, and keep moving while held
-    palm      swipe an open hand              the original palm swipes
-    position  move your hand sideways         the piece follows it
+Older modes (--mode, or m in the preview)
+    flick     point with the index finger; swipe it left / right to move one
+              column, dip it to drop, pinch to rotate, open palm held = pause
+    point     tilt the finger left / right and hold to keep moving
+    palm      swipe an open hand; a held fist pauses / selects
+    position  the piece follows the hand; a held fist pauses / selects
 
-Finger modes (flick, point)
-    dip the finger down and back up  hard drop (or swipe the hand down)
-    pinch (thumb to index tip)       rotate
-    open palm, held for a second     pause
-    curl the finger / relax          nothing: rest any time
-    In menus: swipe to move, drop to select, pinch to go up.
-Palm and position modes: pinch rotates, a held fist pauses / selects.
-
-Keys in the preview window: m = next mode, q / Esc = quit
+Keys in the preview window: c = centre the zone on your hand,
+m = next mode, q / Esc = quit
 
 Tuning
     --stats            print frame rate, tracking time and lost-hand counts
@@ -367,11 +369,35 @@ def draw_preview(frame, landmarks, detector, fps, flash):
             cv2.rectangle(frame, (x0, 0), (x1, 12), (110, 200, 255), -1)
     if detector.mode in FINGER_MODES:
         draw_finger_meter(frame, detector)
+    if detector.mode == "follow":
+        draw_follow(frame, detector)
     cv2.putText(frame, f"{detector.mode} mode  {fps:4.0f} fps  (m: next mode, q: quit)",
                 (10, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
     if flash and time.perf_counter() - flash[1] < 0.4:
         cv2.putText(frame, flash[0], (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.4,
                     (110, 200, 255), 3)
+
+
+def draw_follow(frame, detector):
+    """Follow mode: the zone that stands for the board with its ten columns,
+    where the pointer is in it, and how closed the hand and the pinch are
+    (with the values that trigger), so the thresholds can be tuned."""
+    h, w = frame.shape[:2]
+    cfg, st, info = detector.cfg, detector.follow, detector.debug
+    if st.size:
+        half_w = cfg.zone_width * st.size / cfg.aspect / 2    # in picture widths
+        half_h = cfg.zone_height * st.size / 2
+        x0, x1 = int((cfg.zone_centre_x - half_w) * w), int((cfg.zone_centre_x + half_w) * w)
+        y0, y1 = int((cfg.zone_centre_y - half_h) * h), int((cfg.zone_centre_y + half_h) * h)
+        cv2.rectangle(frame, (x0, y0), (x1, y1), (120, 120, 120), 1)
+        for i in range(1, cfg.columns):
+            x = x0 + (x1 - x0) * i // cfg.columns
+            cv2.line(frame, (x, y0), (x, y0 + 10), (120, 120, 120), 1)
+        dot = (x0 + int(info["u"] * (x1 - x0)), y0 + int(info["v"] * (y1 - y0)))
+        cv2.circle(frame, dot, 9, (110, 200, 255) if info["fist"] else (255, 255, 255), -1)
+    cv2.putText(frame, f"fist {info['grip']:.2f} (drops at {cfg.fist_on:.2f})   "
+                       f"pinch {min(info['pinch'], 9):.2f} (rotates under {cfg.pinch_on:.2f})",
+                (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
 def draw_finger_meter(frame, detector):
@@ -403,8 +429,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--camera", default="0", help="camera index or video file")
-    ap.add_argument("--mode", choices=list(MODES) + list(MODE_ALIASES), default="flick",
-                    help="flick (default), point, palm or position")
+    ap.add_argument("--mode", choices=list(MODES) + list(MODE_ALIASES), default="follow",
+                    help="follow (default), flick, point, palm or position")
+    ap.add_argument("--reach", type=float, metavar="HAND_SIZES",
+                    help="follow mode: sideways hand travel that covers the whole board, "
+                         "in hand sizes (default 3; smaller = less movement, less precise)")
     ap.add_argument("--port", type=int, default=5005)
     ap.add_argument("--width", type=int, default=640)
     ap.add_argument("--height", type=int, default=360)
@@ -431,10 +460,16 @@ def main():
     cfg.swipe_distance /= args.sensitivity
     cfg.drop_distance /= args.sensitivity
     cfg.vertical_swipes = not args.no_vertical
+    if args.reach:
+        cfg.zone_width = args.reach
     detector = GestureDetector(cfg, args.mode)
 
     source = int(args.camera) if args.camera.isdigit() else args.camera
     cap = open_camera(source, args.width, args.height, args.backend)
+    # The picture's real shape: distances are measured the same in both directions
+    picture_w, picture_h = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    if picture_w > 0 and picture_h > 0:
+        cfg.aspect = picture_w / picture_h
     if not isinstance(source, int):
         frames = SequentialReader(cap, time, video_fps(cap))  # a video file
     elif args.sync_capture:
@@ -491,7 +526,7 @@ def main():
             hand = extract_hand(result)
             landmarks = [(x, y) for x, y, _ in hand["image"]] if hand else None
 
-            commands = detector.update(landmarks, now)
+            commands = detector.update(landmarks, now, world=hand["world"] if hand else None)
             if commands:
                 sock.sendto("".join(commands).encode(), target)
                 for c in commands:
@@ -535,6 +570,9 @@ def main():
                 if key == ord("m"):
                     detector.toggle_mode()
                     print(f"Switched to {detector.mode} mode")
+                if key == ord("c") and detector.mode == "follow" and landmarks:
+                    detector.recentre()
+                    print("The zone is now centred on your hand")
     except KeyboardInterrupt:
         pass
     finally:

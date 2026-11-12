@@ -7,6 +7,7 @@
 #include "HighScores.h"
 #include "Profile.h"
 #include "game.h"
+#include "input/ColumnTracker.h"
 #include "input/InputManager.h"
 #include "raylib.h"
 #include "ui/Widgets.h"
@@ -146,6 +147,12 @@ class App {
   // game (H key, main menu) and the choice is kept in the profile
   rules::HandSwitch hand;
   bool hand_was_on = false;
+
+  // Playing by hand: the piece goes to the column under the hand
+  ColumnTracker hand_tracker;
+  rules::HandFollow hand_follow;
+  rules::HandLostPause hand_lost;
+  int hand_column = -1;  // the column under the hand this frame, -1 if none
   void toggle_hand_control();
   void update_hand_control();
   void apply_hand(rules::HandSwitch::Do what);

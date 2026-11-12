@@ -84,6 +84,67 @@ class HandSwitch {
   }
 };
 
+// Hand and keyboard share the piece. The piece goes to the column under
+// the hand, but when the player moves it with the arrow keys the keys win:
+// the piece stays where they put it until the hand moves to another column.
+class HandFollow {
+ public:
+  // hand_column: the column under the hand, or -1 if no hand is in view.
+  // key_moved: the left/right keys moved the piece this frame. Returns the
+  // column the piece should go to, or -1 to leave it where it is.
+  int column(int hand_column, bool key_moved) {
+    if (hand_column < 0) {
+      hold_ = -1;
+      return -1;
+    }
+    if (key_moved) hold_ = hand_column;
+    if (hold_ >= 0) {
+      if (hand_column == hold_) return -1;
+      hold_ = -1;  // the hand has moved on: it steers again
+    }
+    return hand_column;
+  }
+
+ private:
+  int hold_ = -1;  // the hand's column when the keys took over
+};
+
+// Seconds the hand may be out of the camera's view before the game pauses
+const double kHandLostDelay = 1.5;
+
+// A game played by hand pauses by itself when the hand has gone, so a lost
+// hand (or a tracking hiccup) costs a pause instead of the game. If the
+// player goes on with the keyboard instead, nothing pauses.
+class HandLostPause {
+ public:
+  void reset() {
+    had_hand_ = false;
+    lost_since_ = -1;
+  }
+
+  // Call every frame of play. Returns true when the game should pause.
+  bool update(double now, bool hand_in_view, bool key_used) {
+    if (hand_in_view) {
+      had_hand_ = true;
+      lost_since_ = -1;
+      return false;
+    }
+    if (!had_hand_) return false;  // a keyboard game
+    if (key_used) {
+      reset();  // the player took over with the keys
+      return false;
+    }
+    if (lost_since_ < 0) lost_since_ = now;
+    if (now - lost_since_ < kHandLostDelay) return false;
+    reset();
+    return true;
+  }
+
+ private:
+  bool had_hand_ = false;
+  double lost_since_ = -1;
+};
+
 // The shell command that runs `command` in the background: in its own
 // minimised window on Windows.
 inline std::string background_command(const std::string& command) {

@@ -7,9 +7,14 @@ Commands (one letter each, matching src/input/GestureSource.cpp):
     L / R  move left / right       H  hard drop     U  rotate
     P      pause                   C  select (palm / position modes)
     @N     move the piece to column N (position mode)
+    XnYn   where the hand is in its zone, 0-999 each way (follow mode)
 
 Modes:
-    flick     (default) point your index finger up; swipe it left or right to
+    follow    (default) hold your hand open in front of the camera: the piece
+              goes to the column under your hand. Pinch thumb and index
+              finger to rotate, close your hand into a fist to drop. Nothing
+              depends on how fast you move.
+    flick     point your index finger up; swipe it left or right to
               move one column (bringing it back doesn't count), dip it down
               and straight again (or swipe the hand down) to drop
     point     point your index finger up; tilt it left/right and hold to keep
@@ -36,7 +41,12 @@ RING_MCP, RING_PIP, RING_TIP = 13, 14, 16
 PINKY_MCP, PINKY_PIP, PINKY_TIP = 17, 18, 20
 PALM = (WRIST, INDEX_MCP, MIDDLE_MCP, RING_MCP, PINKY_MCP)
 
-MODES = ("flick", "point", "palm", "position")
+FINGERS = {"index": (INDEX_MCP, INDEX_PIP, 7, INDEX_TIP),
+           "middle": (MIDDLE_MCP, MIDDLE_PIP, 11, MIDDLE_TIP),
+           "ring": (RING_MCP, RING_PIP, 15, RING_TIP),
+           "pinky": (PINKY_MCP, PINKY_PIP, 19, PINKY_TIP)}
+
+MODES = ("follow", "flick", "point", "palm", "position")
 FINGER_MODES = ("flick", "point")
 MODE_ALIASES = {"swipe": "palm"}  # the old name of palm mode
 
@@ -82,6 +92,23 @@ class Config:
     baseline_time: float = 0.6         # how fast the resting pose is learned (s)
     max_gap_frames: int = 4            # frames the hand may vanish (blur)
 
+    # Follow mode: where the open hand is decides the column. The hand moves
+    # inside a "zone" of the picture that stands for the whole board.
+    aspect: float = 16 / 9             # picture width / height
+    zone_width: float = 3.0            # sideways travel across the board (hand sizes)
+    zone_height: float = 2.2           # up/down travel across the screen (menus)
+    zone_centre_x: float = 0.5         # middle of the zone in the picture (0..1)
+    zone_centre_y: float = 0.5
+    pointer_min_cutoff: float = 1.2    # pointer smoothing while the hand is still (Hz)
+    pointer_beta: float = 4.0          # ... and how quickly it lets go when the hand moves
+    fist_on: float = 0.6               # mean curl of the four fingers that drops
+    fist_off: float = 0.35             # ... and the hand must open this far to drop again
+    drop_lookback: float = 0.5         # a drop lands where the hand was before it began
+                                       # to close, looking back at most this long (s)
+    fist_min_curl: float = 0.45        # every finger must be curled at least this far
+    fist_frames: int = 2               # frames the fist must hold before it drops
+    pinch_open_curl: float = 0.5       # a pinch needs middle and ring straighter than this
+
 
 @dataclass
 class HandState:
@@ -124,38 +151,117 @@ def _dist(a, b):
     return math.hypot(a[0] - b[0], a[1] - b[1])
 
 
+# ------------------------------------------------------------ hand features
+# Used by follow mode. `points` are 21 landmarks as (x, y) or (x, y, z) in a
+# unit that is the same in every direction: MediaPipe's world landmarks
+# (metres), or picture coordinates with x multiplied by the aspect ratio.
+
+CURLED_REACH = 0.35  # knuckle-to-tip distance / finger length of a fully curled finger
+
+
+def finger_curl(points, finger):
+    """How far a finger is curled in: 0 = straight, 1 = fully curled.
+    Compares the straight line from the knuckle to the fingertip with the
+    finger's length along its joints, so it doesn't matter which way the
+    hand is turned or how far it is from the camera."""
+    mcp, pip, dip, tip = (points[i] for i in FINGERS[finger])
+    length = math.dist(mcp, pip) + math.dist(pip, dip) + math.dist(dip, tip)
+    if length <= 1e-9:
+        return 0.0
+    reach = math.dist(mcp, tip) / length
+    return min(1.0, max(0.0, (1.0 - reach) / (1.0 - CURLED_REACH)))
+
+
+def pinch_gap(points):
+    """Distance between the thumb tip and the index fingertip, in hand sizes."""
+    size = max(math.dist(points[WRIST], points[MIDDLE_MCP]), 1e-9)
+    return math.dist(points[THUMB_TIP], points[INDEX_TIP]) / size
+
+
+class OneEuro:
+    """One Euro filter (Casiez, Roussel, Vogel 2012). Smooths a jittery value
+    strongly while it is still and hardly at all while it moves fast, so the
+    pointer is steady at rest without lagging behind the hand."""
+
+    def __init__(self, min_cutoff, beta, d_cutoff=1.0):
+        self.min_cutoff, self.beta, self.d_cutoff = min_cutoff, beta, d_cutoff
+        self.t = None
+        self.raw = self.value = self.speed = 0.0
+
+    @staticmethod
+    def _alpha(cutoff, dt):
+        tau = 1.0 / (2 * math.pi * cutoff)
+        return 1.0 / (1.0 + tau / dt)
+
+    def __call__(self, x, t):
+        if self.t is None:
+            self.t, self.raw, self.value = t, x, x
+            return x
+        dt = max(t - self.t, 1e-4)
+        self.speed += self._alpha(self.d_cutoff, dt) * ((x - self.raw) / dt - self.speed)
+        cutoff = self.min_cutoff + self.beta * abs(self.speed)
+        self.value += self._alpha(cutoff, dt) * (x - self.value)
+        self.t, self.raw = t, x
+        return self.value
+
+
+@dataclass
+class FollowState:
+    filter_x: OneEuro | None = None
+    filter_y: OneEuro | None = None
+    size: float | None = None       # smoothed hand size in the picture
+    palm: tuple = (0.5, 0.5)        # where the palm is in the picture (0..1)
+    trail: deque = field(default_factory=lambda: deque(maxlen=64))  # (t, u, v, grip)
+    pinching: bool = False
+    fist: bool = False
+    fist_count: int = 0             # frames in a row the hand has been closed
+
+
 class GestureDetector:
     """Feed it landmarks every frame; it returns the commands to send."""
 
-    def __init__(self, config: Config | None = None, mode: str = "flick"):
+    def __init__(self, config: Config | None = None, mode: str = "follow"):
         self.cfg = config or Config()
         mode = MODE_ALIASES.get(mode, mode)
         if mode not in MODES:
             raise ValueError(f"unknown mode {mode!r}, use one of {MODES}")
         self.mode = mode
         self.state = HandState()
+        self.follow = FollowState()
         self.last_label = ""
         self.last_column: int | None = None
-        # What the finger modes see, for the camera preview
-        self.debug = {"pointing": False, "dx": 0.0, "threshold": self._meter_threshold()}
+        # What the detector sees, for the camera preview
+        self.debug = {"pointing": False, "dx": 0.0, "threshold": self._meter_threshold(),
+                      "u": 0.5, "v": 0.5, "grip": 0.0, "pinch": 9.0, "fist": False}
 
     def _meter_threshold(self):
         return self.cfg.finger_threshold if self.mode == "point" else self.cfg.swipe_distance
 
     def toggle_mode(self):
-        """Cycles flick -> point -> palm -> position."""
+        """Cycles follow -> flick -> point -> palm -> position."""
         self.mode = MODES[(MODES.index(self.mode) + 1) % len(MODES)]
         self.reset()
         self.debug["threshold"] = self._meter_threshold()
 
     def reset(self):
         self.state = HandState()
+        self.follow = FollowState()
         self.last_column = None
 
-    def update(self, landmarks, t: float) -> list[str]:
+    def recentre(self):
+        """Follow mode: makes the place where the hand is now the middle of
+        its zone (the middle of the board)."""
+        self.cfg.zone_centre_x, self.cfg.zone_centre_y = self.follow.palm
+        self.follow.filter_x = self.follow.filter_y = None
+        self.follow.trail.clear()
+
+    def update(self, landmarks, t: float, world=None) -> list[str]:
         """landmarks: 21 (x, y) pairs in 0..1 image coordinates (already
         mirrored so moving your hand right moves x up), or None if no hand.
-        t: timestamp in seconds. Returns a list of command strings."""
+        t: timestamp in seconds. world: the same 21 points as (x, y, z) in
+        metres if the tracker gives them (follow mode reads the finger poses
+        from these; without them it uses the picture). Returns a list of
+        command strings."""
         if landmarks is None:
             # A fast movement can blur the hand for a frame or two; only
             # forget the movement if the hand is really gone
@@ -164,6 +270,12 @@ class GestureDetector:
                 self.reset()
             return []
         self.state.missed_frames = 0
+        if self.mode == "follow":
+            out = self._follow(landmarks, world, t)
+            for c in out:
+                if len(c) == 1:
+                    self.last_label = c
+            return out
 
         cfg, st = self.cfg, self.state
         hand_size = max(_dist(landmarks[WRIST], landmarks[MIDDLE_MCP]), 1e-3)
@@ -199,6 +311,78 @@ class GestureDetector:
         for c in out:
             if not c.startswith("@"):
                 self.last_label = c
+        return out
+
+    # ------------------------------------------------------------ follow mode
+
+    def _follow(self, landmarks, world, t):
+        """The open hand's position is the pointer (the game turns it into a
+        column), a pinch rotates and closing the hand drops. Returns the
+        pointer first, so a drop in the same message lands where it shows."""
+        cfg, st = self.cfg, self.follow
+        picture = [(x * cfg.aspect, y) for x, y in landmarks]  # same unit both ways
+        pose = world or picture
+        curls = {name: finger_curl(pose, name) for name in FINGERS}
+        grip = sum(curls.values()) / len(curls)
+
+        # Hand size in the picture, learned slowly and only from an open hand
+        size = max(math.dist(picture[WRIST], picture[MIDDLE_MCP]), 1e-6)
+        if st.size is None:
+            st.size = size
+        elif grip <= cfg.fist_off:
+            st.size += 0.1 * (size - st.size)
+
+        # The palm (wrist + knuckles) hardly moves when the fingers do
+        px = sum(landmarks[i][0] for i in PALM) / len(PALM)
+        py = sum(landmarks[i][1] for i in PALM) / len(PALM)
+        st.palm = (px, py)
+        u = 0.5 + (px - cfg.zone_centre_x) * cfg.aspect / (cfg.zone_width * st.size)
+        v = 0.5 + (py - cfg.zone_centre_y) / (cfg.zone_height * st.size)
+        if st.filter_x is None:
+            st.filter_x = OneEuro(cfg.pointer_min_cutoff, cfg.pointer_beta)
+            st.filter_y = OneEuro(cfg.pointer_min_cutoff, cfg.pointer_beta)
+        u = min(1.0, max(0.0, st.filter_x(u, t)))
+        v = min(1.0, max(0.0, st.filter_y(v, t)))
+
+        st.trail.append((t, u, v, grip))
+        while t - st.trail[0][0] > cfg.drop_lookback:
+            st.trail.popleft()
+        pointer = (u, v)
+
+        # Pinch = rotate, on contact. It needs an otherwise open hand, so the
+        # thumb meeting the index finger inside a closing fist doesn't count.
+        out = []
+        gap = pinch_gap(pose)
+        hand_open = (curls["middle"] < cfg.pinch_open_curl
+                     and curls["ring"] < cfg.pinch_open_curl)
+        if st.pinching:
+            if gap > cfg.pinch_off:
+                st.pinching = False
+        elif gap < cfg.pinch_on and hand_open and not st.fist:
+            st.pinching = True
+            out.append("U")
+
+        # Fist = drop, once; the hand has to open again before the next one
+        if st.fist:
+            if grip <= cfg.fist_off:
+                st.fist = False
+                st.fist_count = 0
+        else:
+            closed = grip >= cfg.fist_on and min(curls.values()) >= cfg.fist_min_curl
+            st.fist_count = st.fist_count + 1 if closed else 0
+            if st.fist_count >= cfg.fist_frames:
+                st.fist = True
+                out.append("H")
+                # Closing the hand tugs the palm sideways. The drop belongs
+                # where the hand was while it was still open, so this message
+                # carries the pointer from the moment the fingers began to
+                # curl: the last time they were about as open as they had been.
+                most_open = min(p[3] for p in st.trail)
+                before = [p for p in st.trail if p[3] <= most_open + 0.05]
+                pointer = before[-1][1:3]
+
+        out.insert(0, f"X{round(pointer[0] * 999)}Y{round(pointer[1] * 999)}")
+        self.debug.update(u=pointer[0], v=pointer[1], grip=grip, pinch=gap, fist=st.fist)
         return out
 
     # ------------------------------------------------------------ gestures

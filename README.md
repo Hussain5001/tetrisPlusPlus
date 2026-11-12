@@ -104,59 +104,85 @@ and the keyboard. There is nothing to restart and no window to close:
 `%LOCALAPPDATA%\tetrisplusplus` and installs the packages pinned in `gesture/requirements.txt`
 (MediaPipe and OpenCV); it rebuilds that environment whenever the file changes.
 The first run also downloads the MediaPipe hand model (about 8 MB) to `gesture/models/`.
-Every recognised gesture is shown briefly over the board.
 
 You can also start the camera script yourself while the game is open, for example to try another
-mode: `gesture\run_windows.bat --mode point`. The game picks it up and H closes it.
+mode: `gesture\run_windows.bat --mode flick`. The game picks it up and H closes it.
 
-Point your **index finger up** (like showing "1"), with the other fingers curled in:
+Hold your **open hand** in front of the camera, palm towards it:
 
 | Gesture | In game | In menus |
 |---|---|---|
-| Swipe the finger left / right | move one column | move the selection |
-| Dip the finger down and straight up again (or swipe the hand down) | hard drop | select |
+| Move the hand left / right | the piece goes to the column under your hand | |
 | Pinch (thumb to index fingertip) | rotate | move the selection up |
-| Show an open palm and hold it still for a second | pause / resume | back |
-| Curl the finger, make a fist or relax your hand | nothing | nothing |
+| Close the hand into a fist | hard drop | select |
+| Take the hand out of the picture | the game pauses after 1.5 seconds | |
 
-There are four modes. Choose one with `--mode`, or press `m` in the camera window to switch:
+This is **follow mode**. It needs one hand movement, up to three pinches and one fist for each
+piece, and nothing depends on how fast you move:
 
-| Mode | Left / right |
-|---|---|
-| `flick` (default) | each swipe of the finger (tilt it or move the hand) moves one column |
-| `point` | tilt the finger and **hold** it to keep moving, like holding an arrow key |
-| `palm` | the original open-hand swipes, a held fist pauses / selects (`--mode swipe` also works) |
-| `position` | the piece follows your hand sideways, a held fist pauses / selects |
+- The camera window shows a grey box: the zone your hand moves in, which stands for the whole
+  board. A marker under the well in the game shows the column your hand is over.
+- A drop lands where your hand was just before it started to close, so closing the hand doesn't
+  nudge the piece.
+- Open the hand again after a drop; a fist that stays closed drops only once.
+- A relaxed hand with slightly curled fingers is fine. Only a real fist drops.
+- The arrow keys still work. After you move a piece with them, it stays there until your hand
+  moves to another column. If you carry on with the keyboard after taking your hand away, the
+  game doesn't pause.
+- To continue after the pause, bring your hand back and make a fist on *resume*.
 
-Tips:
+Tuning:
 
-- Bringing your finger back after a swipe never counts, however fast. To go the other way, just
-  swipe past the point where the last swipe started: left, back to the middle, on to the right
-  gives left then right.
-- Resting is safe: a fist, a curled finger or a relaxed hand does nothing. The drop only fires
-  when a dipped finger points again within about half a second, so curling it to rest never drops.
-  Curling the finger also resets the swipe, so you can move your hand back to the middle.
-- Swipes are measured in hand sizes, so they work the same close to the camera or far away.
-  Slow drifts don't count.
-- The camera window shows **pointing: yes/no** and a meter of how far the fingertip has moved.
-  The dot has to pass the blue marks to move.
-- Tuning: `--sensitivity 1.3` makes smaller swipes and dips count, and `--sensitivity 0.8` needs
-  bigger ones. `--no-vertical` turns off the drop. Thresholds are in `gesture/gestures.py` (`Config`).
-- If the hand blurs for a frame or two during a quick move, the gesture still counts.
-- Good lighting and a plain background help MediaPipe the most.
+- Press `c` in the camera window to put the middle of the zone where your hand is now.
+- `gesture\run_windows.bat --reach 2.5` makes the zone narrower (less arm movement, less precise);
+  the default is 3 hand sizes from the left wall to the right wall.
+- The camera window shows how closed the hand is (`fist`) and how far apart thumb and index
+  finger are (`pinch`), next to the values that trigger. All thresholds are in
+  `gesture/gestures.py` (`Config`).
 - Measuring instead of guessing: `gesture\run_windows.bat --stats` prints the real frame rate,
   the tracking time and how often the hand was lost. `--record clip.jsonl` saves every frame's
   hand landmarks; `py gesture/replay.py clip.jsonl --expect U=20 --set pinch_on=0.32` then runs
   the detector over exactly those movements with other settings and counts missed, extra and
   false commands (`--help` explains the options).
+- Good lighting and a plain background help MediaPipe the most.
+
+#### Older modes
+
+The earlier gesture modes are still there for now. Start the camera script yourself with
+`gesture\run_windows.bat --mode flick`, or press `m` in the camera window:
+
+| Mode | How it works |
+|---|---|
+| `flick` | point with the index finger; each swipe of it moves one column, dipping it drops, a pinch rotates, an open palm held for a second pauses |
+| `point` | like `flick`, but tilt the finger and **hold** it to keep moving |
+| `palm` | swipe an open hand; a held fist pauses / selects (`--mode swipe` also works) |
+| `position` | the piece follows the hand sideways; a held fist pauses / selects |
+
+`--sensitivity 1.3` makes smaller swipes count in these modes and `--no-vertical` turns their
+drop off.
 
 ### How it works
 
 ```
-webcam ──► hand_control.py ──(UDP 127.0.0.1:5005, e.g. "L", "H", "@4")──► Tetris
+webcam ──► hand_control.py ──(UDP 127.0.0.1:5005, e.g. "X512Y430", "U", "H")──► Tetris
            MediaPipe landmarks                                            InputManager
            → gestures.py                                                  → Game::apply(Action)
 ```
+
+Each message holds one or more commands:
+
+| Command | Meaning |
+|---|---|
+| `X<n>` `Y<n>` | where the hand is in its zone, 0–999 from the left / top edge (follow mode, every frame) |
+| `U` | rotate |
+| `H` | hard drop (select in menus) |
+| `L` `R` | move one column left / right |
+| `D` | soft drop |
+| `P` | pause / resume |
+| `C` | confirm (pause in game, select in menus) |
+| `B` | back |
+| `@<n>` | move the piece to column n (the old position mode) |
+| `K` | keep-alive, sent twice a second |
 
 The game reads the UDP socket without blocking every frame, so a gesture takes effect on
 the next frame after it arrives. The socket only listens on this computer (127.0.0.1). Any
@@ -178,14 +204,16 @@ py tests/smoke_test.py build/Release/Tetris.exe   # plays the real game (opens i
   soft/hard drop and ghost, gravity, lock delay, wall kicks, game over, line clearing, Zen levels,
   pace, multiplier and save files, the pause-aware timer, Time Attack and First 40 scoring, high
   scores, profile, colours, key auto-repeat, the UDP gesture protocol and menu navigation.
-- **Python**: the gesture detector with simulated hand and finger movements (flicks, point-and-hold,
-  drift, jitter, blur gaps), and the camera script's main
+- **Python**: the gesture detector with simulated hands (follow mode: the pointer, pinches, fists,
+  a relaxed or trembling hand; the older modes: flicks, point-and-hold, drift, jitter, blur
+  gaps), and the camera script's main
   loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
   camera fallback, model download, frame timing, skipping stale frames, stats, closing when the
   game says so), and recording and replaying a session.
 - **Smoke test**: starts the game and plays it through UDP gesture commands: hand control on and
   off (with a stand-in camera script that has no camera), Time Attack to game over (checks
-  `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
+  `scores.json`), a Zen setting (checks `profile.json`), drops by hand that must land in the
+  column under the hand, the pause when the hand leaves, save & quit and continue saved.
 
 CI runs the C++ and Python tests on every push and builds the Windows download. It also builds
 the game on Linux, only because a headless display is available there for the smoke test.

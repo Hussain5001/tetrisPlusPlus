@@ -114,6 +114,13 @@ bool Game::step_towards_column(int column) {
   return current_block.get_col_offset() != before;
 }
 
+// Function to move the block to the target column in one go
+void Game::move_to_column(int column) {
+  for (int steps = 0; steps < game_grid.get_num_cols(); steps++) {
+    if (!step_towards_column(column)) break;
+  }
+}
+
 // Function to find the cells the current block would occupy if dropped
 std::vector<Position> Game::ghost_position() {
   Tetromino original = current_block;

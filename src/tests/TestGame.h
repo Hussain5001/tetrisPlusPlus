@@ -19,6 +19,7 @@ class TestGame {
     hard_drop_and_ghost();
     ghost_does_not_move_block();
     step_towards_column();
+    move_to_column();
     gravity_tick();
     wall_kick();
     lock_delay();
@@ -123,6 +124,37 @@ class TestGame {
     int max_col = 0;
     for (Position p : game.current_block.get_current_position()) max_col = std::max(max_col, p.column);
     test::check(left && max_col == 9, "position mode steps the block to a column");
+  }
+
+  static int left_edge(Game& game) {
+    int left = 99;
+    for (Position p : game.current_block.get_current_position()) left = std::min(left, p.column);
+    return left;
+  }
+
+  static int right_edge(Game& game) {
+    int right = -1;
+    for (Position p : game.current_block.get_current_position()) right = std::max(right, p.column);
+    return right;
+  }
+
+  // A drop by hand lands under the hand: the block goes there in one go
+  void move_to_column() {
+    ZenMode game;
+    game.move_to_column(0);
+    bool left = left_edge(game) == 0;
+    game.move_to_column(9);
+    bool right = right_edge(game) == 9;
+    game.move_to_column(4);
+    int centre = (left_edge(game) + right_edge(game)) / 2;
+    test::check(left && right && centre == 4, "a block moves to a column in one go");
+
+    // Other blocks are in the way: it goes as far as it can
+    ZenMode blocked;
+    for (int r = 0; r < 4; r++) blocked.game_grid.grid[r][7] = 3;
+    blocked.move_to_column(9);
+    test::check(right_edge(blocked) == 6 && inside_board(blocked.current_block),
+                "a block on its way to a column stops at other blocks");
   }
 
   void gravity_tick() {

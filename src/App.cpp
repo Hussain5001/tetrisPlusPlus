@@ -381,8 +381,10 @@ void App::pause_scene(const std::vector<Action>& actions) {
   draw_sidebar();
   Rectangle panel = {kWidth / 2 - 200.f, 180, 400, 110.f + pause_menu.items.size() * 44};
   draw_panel(panel, "paused");
-  ui::text_centered("swipe to choose, drop to select", kWidth / 2, panel.y + 58, 22,
-                    ui::theme().dim);
+  // The hint fits how the game is being played
+  ui::text_centered(input->gestures().pointer_seen() ? "pinch moves up, a fist selects"
+                                                     : "up/down move, enter selects",
+                    kWidth / 2, panel.y + 58, 22, ui::theme().dim);
   int choice = pause_menu.run(actions, panel.x + 60, panel.y + 96, 280, 44, 32);
   for (Action a : actions) {
     if (a == Action::Pause || a == Action::Back) choice = 0;
@@ -489,6 +491,7 @@ void App::start_game(int new_mode, bool load_saved) {
   drawn_piece_id = -1;
   lines_this_game = 0;
   timer_started = false;
+  hand_column = -1;
   particles.clear();
   float_texts.clear();
   trails.clear();
@@ -507,6 +510,7 @@ void App::start_game(int new_mode, bool load_saved) {
 }
 
 void App::begin_countdown() {
+  hand_lost.reset();
   counting = true;
   countdown_end = GetTime() + kCountdown;
   last_countdown_beep = -1;
@@ -537,6 +541,21 @@ void App::update_game(const std::vector<Action>& actions) {
     game->fall_start = GetTime();
   }
 
+  // Playing by hand: the column under the hand (follow mode sends where the
+  // hand is, the old position mode sends the column itself)
+  const GestureSource& hand_source = input->gestures();
+  if (hand_source.pointer_live()) {
+    hand_column = hand_tracker.update(hand_source.pointer_x());
+  } else {
+    hand_tracker.reset();
+    hand_column = hand_source.target_column();
+  }
+  if (hand_lost.update(GetTime(), hand_source.pointer_live(), input->keyboard_used())) {
+    pause_game();  // the hand has left the camera's view
+    return;
+  }
+  int follow = hand_follow.column(hand_column, input->keyboard_moved());
+
   double score_before = game->score;
   for (Action a : actions) {
     if (a == Action::Pause || a == Action::Confirm) {
@@ -547,6 +566,8 @@ void App::update_game(const std::vector<Action>& actions) {
     int rot = game->current_block.current_rotation;
     int id = game->piece_id;
     if (a == Action::HardDrop && !game->game_over) {
+      // A drop lands under the hand, even if the block was still on its way
+      if (follow >= 0) game->move_to_column(follow);
       // Remember where the block was, for the drop trail
       Trail trail;
       std::vector<Position> from = game->current_block.get_current_position();
@@ -567,11 +588,8 @@ void App::update_game(const std::vector<Action>& actions) {
     }
   }
 
-  // Position mode: the piece follows the hand, one column per frame
-  int column = input->gestures().target_column();
-  if (column >= 0) {
-    game->step_towards_column(column);
-  }
+  // The piece slides to the hand's column, one column per frame
+  if (follow >= 0) game->step_towards_column(follow);
   game->fall_block();
 
   if (mode == 3) {
@@ -614,6 +632,7 @@ void App::pause_game() {
   }
   pause_menu.focus = 0;
   scene = Scene::Paused;
+  std::cout << "game: paused" << std::endl;
   sound::play(Sfx::Pause);
 }
 
@@ -718,6 +737,12 @@ void App::draw_board() {
   for (int c = 0; c < cols; c++) {
     ui::text_centered("==", kBoardX + c * cell + cell / 2.0f, by, 30, t.dim);
     ui::text_centered("\\/", kBoardX + c * cell + cell / 2.0f, by + 26, 30, t.faint);
+  }
+
+  // Playing by hand: a bright marker under the well shows the hand's column
+  if (scene == Scene::Playing && hand_column >= 0 && hand_column < cols) {
+    DrawRectangle(kBoardX + hand_column * cell, (int)by + 30, cell, 26, t.background);
+    ui::text_centered("/\\", kBoardX + hand_column * cell + cell / 2.0f, by + 26, 30, t.bright);
   }
 
   game->game_grid.draw(kBoardX, kBoardY);
@@ -844,7 +869,9 @@ void App::draw_hand_status(float x, float y, bool right_align) {
   } else if (!live) {
     label = link == rules::HandLink::Starting ? "hand: starting"
             : link == rules::HandLink::NoAnswer ? "hand: no answer" : "hand: off";
-  } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
+  } else if (g.pointer_seen() && !g.pointer_live()) {
+    label = "hand: not in view";
+  } else if ((g.pointer_live() || g.target_column() >= 0) && g.seconds_since_gesture() > 0.5) {
     label = "hand: following";
   } else if (g.seconds_since_gesture() < 2) {
     label = std::string("hand: ") + action_name(g.last_action());
@@ -862,6 +889,9 @@ void App::draw_hand_status(float x, float y, bool right_align) {
 // see what the camera recognised
 void App::draw_gesture_popup() {
   const GestureSource& g = input->gestures();
+  // In follow mode the marker under the well and the status line show what
+  // the camera sees; a label over the board on every pinch would be in the way
+  if (g.pointer_live()) return;
   double t = g.seconds_since_gesture();
   if (t > 0.5) return;
   float alpha = (float)(1 - t / 0.5);
