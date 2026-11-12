@@ -44,6 +44,21 @@ std::vector<Tetromino> Game::get_blocks(){
                 BlockS(), BlockT(), BlockZ()};
 }
 
+// Function to attach the current block to the grid and bring in the next one
+void Game::block_attach() {
+  for (Position cell : current_block.get_current_position()) {
+    game_grid.grid[cell.row][cell.column] = current_block.color_id;
+  }
+  // Clear the full rows before the next block appears: a block that
+  // completes a line near the top makes room for it
+  on_lines_cleared(game_grid.row_clearance());
+  current_block = random_block();
+  if (is_collision()) {
+    game_over = true;
+    on_top_out();
+  }
+}
+
 // Function to apply a single player action to the game
 void Game::apply(Action action) {
   switch (action) {

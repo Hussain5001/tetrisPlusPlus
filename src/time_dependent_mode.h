@@ -1,7 +1,6 @@
 #pragma once
 #include "game.h"
 #include <chrono>
-#include <ctime>
 class TimeDependentMode: public Game{
     public:
         TimeDependentMode();
@@ -13,11 +12,15 @@ class TimeDependentMode: public Game{
         void resume_timer();
         bool timer_on=false;
     protected:
-        std::chrono::time_point<std::chrono::system_clock> game_start_time;
-        std::chrono::time_point<std::chrono::system_clock> game_end_time;
-        std::chrono::time_point<std::chrono::system_clock> pause_start_time;
+        // A steady clock never jumps, unlike the wall clock (time sync,
+        // daylight saving), so the game timer can't skip or run backwards
+        using Clock = std::chrono::steady_clock;
+        Clock::time_point game_start_time;
+        Clock::time_point game_end_time;
+        Clock::time_point pause_start_time;
         std::chrono::duration<double> paused_duration{0};
         bool paused=false;
 
+        // The clock stops when the board fills up
+        void on_top_out() override;
 };
-

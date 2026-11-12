@@ -10,18 +10,9 @@ bool TimeAttackMode::is_game_finished() {
     return false;
   }
 }
-// Function to attach the block to the grid
-void TimeAttackMode::block_attach(){
-    std::vector<Position> block_structure = current_block.get_current_position();
-    for(Position cell:block_structure){
-        game_grid.grid[cell.row][cell.column]=current_block.color_id;
-    }
-    current_block=random_block();
-    if(is_collision()){
-        game_over=true;
-        game_end();
-    }
-    lines_cleared=game_grid.row_clearance();
+// Function to score the rows cleared by the block that just landed
+void TimeAttackMode::on_lines_cleared(int lines){
+    lines_cleared=lines;
     score+=get_score();
     lines_cleared=0;
 }

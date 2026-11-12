@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 
+#include "../AppRules.h"
 #include "../input/AutoRepeat.h"
 #include "../input/GestureSource.h"
 #include "../ui/Widgets.h"
@@ -18,6 +19,7 @@ class TestInput {
     menu_navigation();
     menu_disabled_rows();
     menu_value_rows();
+    focus_pause_rule();
   }
 
  private:
@@ -137,5 +139,16 @@ class TestInput {
     int start = menu.handle(acts({Action::Confirm}));
     test::check(inc && dec && reset, "left/right change a setting");
     test::check(next == -1 && start == 1, "select on a setting moves to the next row");
+  }
+
+  void focus_pause_rule() {
+    bool keyboard = rules::pause_on_focus_loss(true, false, true, false);
+    bool hand = rules::pause_on_focus_loss(true, false, true, true);
+    bool in_menu = rules::pause_on_focus_loss(true, false, false, false);
+    bool still_focused = rules::pause_on_focus_loss(true, true, true, false);
+    bool stays_away = rules::pause_on_focus_loss(false, false, true, false);
+    test::check(keyboard && !in_menu && !still_focused && !stays_away,
+                "losing the window focus pauses a keyboard game once");
+    test::check(!hand, "losing the window focus doesn't pause while a hand plays");
   }
 };

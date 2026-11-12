@@ -83,8 +83,10 @@ public:
     // Points for each row moved with soft drop (the down key)
     double soft_drop_points = 1;
 
-    // Function to attach the block to the game grid
-    virtual void block_attach() = 0;
+    // Function to attach the block to the game grid: fills its cells, clears
+    // the full rows (reported to on_lines_cleared() for scoring), then spawns
+    // the next block. The game is over if that block has no room.
+    void block_attach();
 
     // Function to check if the game is finished
     virtual bool is_game_finished() = 0;
@@ -101,6 +103,13 @@ public:
 
     // Function to check if the block is within the game grid
     bool is_within_grid();
+
+    // Function called by block_attach() with the number of rows it just
+    // cleared (0-4), so each mode can keep its own score
+    virtual void on_lines_cleared(int lines) = 0;
+
+    // Function called by block_attach() when the next block has no room
+    virtual void on_top_out() {}
 
     // Lock delay state
     bool grounded = false;

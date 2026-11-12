@@ -29,17 +29,14 @@ public:
 
     // Member variables
     int total_lines_cleared; // variable to keep track of the total lines cleared
-    int lines_cleared; // variable to keep track of lines cleared in one move
     double score_multiplier; // variable to manage the score multiplier
     int lines_counter; // variable to count the lines
 
     // Function to check if the game is finished
     bool is_game_finished();
 
-    // Function to attach the block to the grid
-    void block_attach();
-
-    // Function to calculate the score based on lines cleared
+    // Function to calculate the score based on lines cleared (lines_cleared
+    // rows in one move, before the multiplier)
     double get_score();
 
     // Function to manage the falling of blocks
@@ -54,4 +51,8 @@ public:
     // Function to load the game state from a JSON file. Returns false if the
     // file is missing or unreadable.
     bool load_game_state(const std::string& path = "game_state.json");
+
+protected:
+    // Function to score the rows cleared by the block that just landed
+    void on_lines_cleared(int lines) override;
 };

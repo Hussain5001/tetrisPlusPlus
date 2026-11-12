@@ -39,15 +39,9 @@ double ZenMode::multiplier_for(int level) {
 bool ZenMode::is_game_finished() {
     return is_collision();
 }
-// Function to attach the block to the grid
-void ZenMode::block_attach() {
-    std::vector<Position> block_structure = current_block.get_current_position();
-    for (Position cell : block_structure) {
-        game_grid.grid[cell.row][cell.column] = current_block.color_id;
-    }
-    current_block = random_block();
-    game_over = is_game_finished();
-    lines_cleared = game_grid.row_clearance();
+// Function to score the rows cleared by the block that just landed
+void ZenMode::on_lines_cleared(int lines) {
+    lines_cleared = lines;
     total_lines_cleared += lines_cleared;
     score += get_score() * score_multiplier;
     lines_cleared = 0;

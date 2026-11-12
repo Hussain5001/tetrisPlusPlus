@@ -57,7 +57,7 @@ game in `build\Release\Tetris.exe`. Run it again after changing the code.
 | ↑ or X | rotate |
 | ↓ | soft drop |
 | Space | hard drop |
-| Esc or P | pause (the game also pauses when its window loses focus) |
+| Esc or P | pause (the game also pauses when its window loses focus, unless hand control is connected) |
 | Enter | select in menus |
 | M | sound on/off |
 | F11 | fullscreen |

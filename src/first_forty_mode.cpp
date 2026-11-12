@@ -12,22 +12,7 @@ double FirstFortyMode::get_score() {
     return elapsed_seconds();
 }
 
-//Function to attach the block in the grid and storing the number of lines cleared
-void FirstFortyMode::block_attach() {
-  std::vector<Position> block_structure = current_block.get_current_position();
-  for (Position cell : block_structure) {
-    game_grid.grid[cell.row][cell.column] = current_block.color_id;
-  }
-
-  //Storing the block using the random block generator
-  current_block = random_block();
-  
-  //Collision check
-  if(is_collision()){
-    game_over=true;
-    game_end();
-  }
-  lines_cleared = game_grid.row_clearance();
-  total_lines_cleared += lines_cleared;
-  lines_cleared = 0;
+//Function to count the rows cleared by the block that just landed
+void FirstFortyMode::on_lines_cleared(int lines) {
+  total_lines_cleared += lines;
 }

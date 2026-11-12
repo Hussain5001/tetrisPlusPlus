@@ -26,6 +26,7 @@ class TestGame {
     hard_drop_ignores_lock_delay();
     blocked_rotation_is_undone();
     game_over_stops_input();
+    line_clear_at_the_top_keeps_playing();
     board_row_clearance_events();
   }
 
@@ -243,6 +244,29 @@ class TestGame {
     test::check(game.game_over, "game over when a new block can't spawn");
     test::check(game.current_block.get_col_offset() == col && test::near(game.score, score),
                 "no moves or points after game over");
+  }
+
+  // The stack reaches the top row where blocks appear, but the block that
+  // lands completes two lines: they are removed first, which makes room
+  void line_clear_at_the_top_keeps_playing() {
+    ZenMode game;
+    for (int c = 3; c <= 6; c++) game.game_grid.grid[0][c] = 2;  // where blocks appear
+    for (int c = 0; c < 10; c++) {
+      game.game_grid.grid[18][c] = 1;
+      game.game_grid.grid[19][c] = 1;
+    }
+    game.current_block.move(10, 0);  // the landing block is out of the way
+    game.block_attach();
+    bool moved_down = game.game_grid.grid[2][3] == 2 && game.game_grid.grid[0][3] == 0;
+    test::check(game.total_lines_cleared == 2 && moved_down && !game.game_over,
+                "a line clear that frees the top doesn't end the game");
+
+    // Without the line clear the same stack does end it
+    ZenMode full;
+    for (int c = 3; c <= 6; c++) full.game_grid.grid[0][c] = 2;
+    full.current_block.move(10, 0);
+    full.block_attach();
+    test::check(full.game_over, "a stack at the top ends the game");
   }
 
   void board_row_clearance_events() {

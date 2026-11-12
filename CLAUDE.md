@@ -35,9 +35,10 @@ screenshots are taken the same way with `LIBGL_ALWAYS_SOFTWARE=1` and ImageMagic
 
 | Path | What |
 |---|---|
-| `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()`, wall kicks, `tick(now)` gravity with optional `lock_delay`, `piece_id` |
+| `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()`, wall kicks, `tick(now)` gravity with optional `lock_delay`, `piece_id`. `block_attach()` is shared by all modes: lock the block, clear full rows, call the mode's `on_lines_cleared(n)` for scoring, spawn the next block, and end the game (`on_top_out()`) if it has no room |
 | `src/zen_mode.*` | `ZenSettings` (start level, lines per level), `level`, `drop_interval_for()`, `multiplier_for()`, `update_level()`, save/load incl. level data (`load_game_state` returns false if there is no usable save). Default `ZenMode()` = level 1, x1, 5 lines per level (the original tests rely on it) |
-| `src/time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The two timed modes (scoring, finish rules); `TimeDependentMode` has `pause_timer()`/`resume_timer()` |
+| `src/time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The two timed modes (scoring, finish rules); `TimeDependentMode` has `pause_timer()`/`resume_timer()` on a steady clock and stops it when the board fills up |
+| `src/AppRules.h` | Small decisions the App makes, as pure functions without raylib so tests can check them (`rules::pause_on_focus_loss`) |
 | `src/HighScores.*`, `src/Profile.*` | `scores.json` (top 5 + last run per mode) and `profile.json` (Zen setup choices); both tolerate missing/broken files |
 | `src/Sound.*` | Beeps generated in code (`sound::play(Sfx::...)`); no-op without an audio device |
 | `src/board.*` | 20x10 grid (raw `int**`, not copyable), row clearing, drawing; records `last_cleared_rows`/`clear_events` for the flash effect. Note: `is_cell_within_bounds()` returns true for a cell *outside* the grid |

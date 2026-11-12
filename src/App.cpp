@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "AppRules.h"
 #include "Color.h"
 #include "Sound.h"
 #include "first_forty_mode.h"
@@ -184,9 +185,12 @@ void App::handle_global_keys() {
     profile.save();
     refresh_zen_menu();
   }
-  // Pause automatically when the window loses focus
+  // Pause automatically when the window loses focus (not while a hand plays)
   bool focused = IsWindowFocused();
-  if (was_focused && !focused && scene == Scene::Playing) pause_game();
+  if (rules::pause_on_focus_loss(was_focused, focused, scene == Scene::Playing,
+                                 input->gestures().connected())) {
+    pause_game();
+  }
   was_focused = focused;
 }
 
