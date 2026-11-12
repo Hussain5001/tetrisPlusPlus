@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "AppRules.h"
 #include "HighScores.h"
 #include "Profile.h"
 #include "game.h"
@@ -21,9 +22,6 @@ class App {
 
   // Opens the window and runs until the player quits
   void run_menu();
-
-  // Starts the gesture sidecar (gesture/hand_control.py) in the background
-  bool launch_gesture_sidecar = false;
 
  private:
   enum class Scene { Boot, MainMenu, ZenSetup, Playing, Paused, GameOver };
@@ -143,5 +141,15 @@ class App {
 
   std::string format_score(int for_mode, const ScoreEntry& entry) const;
   std::string game_over_title();
-  void start_sidecar();
+
+  // Hand control: the camera script is started and stopped from inside the
+  // game (H key, main menu) and the choice is kept in the profile
+  rules::HandSwitch hand;
+  bool hand_was_on = false;
+  void toggle_hand_control();
+  void update_hand_control();
+  void apply_hand(rules::HandSwitch::Do what);
+  rules::HandLink hand_link() const;
+  void refresh_main_menu();
+  bool start_sidecar();
 };

@@ -1,14 +1,19 @@
 Tetris++ for Windows
 ====================
 
-Play:          double-click play.bat
-Keyboard only: double-click Tetris.exe
+Play: double-click Tetris.exe
 
-Hand control (camera) needs Python 3.10-3.12 from https://www.python.org/downloads/
-(tick "Add python.exe to PATH" in the installer). The first start downloads
-MediaPipe and a hand model, which takes a minute or two; a minimised
-"Tetris++ hand control" window does this. When it's ready, a camera preview
-opens and the game's HAND CONTROL box turns on.
+Hand control (camera)
+  Press H in the game to switch hand control on, and H again to switch it
+  off. The keyboard works the whole time, so you can change between the two
+  whenever you like; nothing has to be restarted or closed.
+
+  It needs Python 3.10-3.12 from https://www.python.org/downloads/ (tick
+  "Add python.exe to PATH" in the installer). The first time, a minimised
+  "Tetris++ hand control" window downloads MediaPipe and a hand model, which
+  takes a minute or two. Then a camera preview opens and the status line at
+  the bottom of the game changes from "hand: starting" to "hand: ready".
+  The game remembers the choice, and the camera closes when the game does.
 
 Gestures
   Point your index finger up (other fingers curled in):
@@ -27,6 +32,9 @@ Keyboard
   space                   hard drop
   esc or P                pause
   enter                   select in menus
+  H                       hand control on / off
+  M                       sound on / off
+  F11                     fullscreen
 
 Your saved Zen game and scores are stored in this folder.
 Source code: https://github.com/Hussain5001/tetrisPlusPlus

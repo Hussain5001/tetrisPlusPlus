@@ -1,3 +1,5 @@
+// std::getenv is fine here (MSVC would rather have its own _dupenv_s)
+#define _CRT_SECURE_NO_WARNINGS
 #include "App.h"
 
 #include <algorithm>
@@ -22,7 +24,8 @@ const char* kModeNames[] = {"", "zen", "time attack", "first 40 lines"};
 const char* kModeHints[] = {
     "", "play at your own pace. pick a level, save and come back later.",
     "score as much as you can in 120 seconds.",
-    "clear 40 lines as fast as you can."};
+    "clear 40 lines as fast as you can.",
+    "play with your hand through the camera. h switches it."};
 
 struct Pace {
   const char* name;
@@ -96,9 +99,12 @@ void App::run_menu() {
   }
 
   input.reset(new InputManager());
-  if (launch_gesture_sidecar) start_sidecar();
+  // Hand control comes back the way the player left it
+  if (profile.hand_control && input->gestures().is_open()) {
+    apply_hand(hand.toggle(GetTime(), false));
+  }
 
-  main_menu = ui::Menu({"zen", "time attack", "first 40 lines", "quit"});
+  refresh_main_menu();
   over_menu = ui::Menu({"play again", "main menu", "quit"});
   refresh_zen_menu();
   zen_menu.focus = 6;  // "start"
@@ -134,6 +140,7 @@ void App::run_menu() {
     ui::update_mouse();
     handle_global_keys();
     std::vector<Action> actions = input->poll();
+    update_hand_control();
 
     BeginTextureMode(target);
     ClearBackground(ui::theme().background);
@@ -162,6 +169,7 @@ void App::run_menu() {
   }
 
   game.reset();
+  input->gestures().quit_sidecar();  // the camera script closes with the game
   input.reset();
   if (crt_loaded) UnloadShader(crt_shader);
   UnloadRenderTexture(target);
@@ -179,6 +187,7 @@ void App::apply_profile() {
 // Keys that work everywhere
 void App::handle_global_keys() {
   if (IsKeyPressed(KEY_F11)) ToggleBorderlessWindowed();
+  if (IsKeyPressed(KEY_H)) toggle_hand_control();
   if (IsKeyPressed(KEY_M)) {
     profile.sound = !profile.sound;
     apply_profile();
@@ -253,22 +262,24 @@ void App::main_menu_scene(const std::vector<Action>& actions) {
   ui::draw_logo(kWidth / 2, 70, 16, (float)GetTime());
   ui::text_centered("hands-free edition", kWidth / 2, 162, 28, t.dim);
 
-  int choice = main_menu.run(actions, 250, 240, 300, 46, 34);
+  int choice = main_menu.run(actions, 215, 240, 370, 46, 34);
 
   // Best and last result for the focused mode
   int focused_mode = main_menu.focus + 1;
+  if (focused_mode == 4) ui::text_centered(kModeHints[4], kWidth / 2, 490, 24, t.dim);
   if (focused_mode <= 3) {
-    ui::text_centered(kModeHints[focused_mode], kWidth / 2, 440, 24, t.dim);
+    ui::text_centered(kModeHints[focused_mode], kWidth / 2, 490, 24, t.dim);
     const ScoreEntry* best = scores.best(focused_mode);
     const ScoreEntry* last = scores.last(focused_mode);
     std::string b = best ? format_score(focused_mode, *best) + "  (" + best->date + ")"
                          : "---";
     std::string l = last ? format_score(focused_mode, *last) : "---";
-    draw_score_line(250, 480, 300, "best", b, true);
-    draw_score_line(250, 512, 300, "last", l, false);
+    draw_score_line(215, 526, 370, "best", b, true);
+    draw_score_line(215, 558, 370, "last", l, false);
   }
 
-  ui::text("up/down move   enter select   m mute   f11 fullscreen", 40, 610, 22, t.dim);
+  ui::text("up/down move   enter select   h hand   m mute   f11 fullscreen", 40, 610, 22,
+           t.dim);
   ui::text("v2.0 // built by hussain5001", 40, 650, 24, t.dim);
   draw_hand_status(kWidth - 40, 650, true);
 
@@ -279,8 +290,27 @@ void App::main_menu_scene(const std::vector<Action>& actions) {
   } else if (choice == 1 || choice == 2) {
     start_game(choice + 1, false);
   } else if (choice == 3) {
+    toggle_hand_control();
+  } else if (choice == 4) {
     quit = true;
   }
+}
+
+// Rebuilds the main menu, whose "hand control" line shows whether it is on
+void App::refresh_main_menu() {
+  const char* state = "off";
+  switch (hand_link()) {
+    case rules::HandLink::On: state = "on"; break;
+    case rules::HandLink::Starting: state = "starting"; break;
+    case rules::HandLink::NoAnswer: state = "no answer"; break;
+    case rules::HandLink::PortBusy: state = "port busy"; break;
+    case rules::HandLink::Off: break;
+  }
+  std::string line = std::string("hand control: ") + state;
+  if (main_menu.items.size() == 5 && main_menu.items[3] == line) return;  // nothing new
+  int focus = main_menu.focus;
+  main_menu = ui::Menu({"zen", "time attack", "first 40 lines", line, "quit"});
+  main_menu.focus = focus;
 }
 
 // Rebuilds the value column of the Zen setup screen from the profile
@@ -792,8 +822,9 @@ void App::draw_sidebar() {
   ui::text("keys", x, ky, 24, t.dim);
   const char* keys[][2] = {{"left/right", "move"},   {"up / x", "rotate"},
                            {"down", "soft drop"},    {"space", "hard drop"},
-                           {"esc / p", "pause"},     {"m / f11", "mute / full"}};
-  for (int i = 0; i < 6; i++) {
+                           {"esc / p", "pause"},     {"m / f11", "mute / full"},
+                           {"h", "hand on / off"}};
+  for (int i = 0; i < 7; i++) {
     ui::text(keys[i][0], x + 10, ky + 28 + i * 25, 24, t.text);
     ui::text(keys[i][1], x + 160, ky + 28 + i * 25, 24, t.dim);
   }
@@ -806,11 +837,13 @@ void App::draw_hand_status(float x, float y, bool right_align) {
   const ui::Theme& t = ui::theme();
   const GestureSource& g = input->gestures();
   bool live = g.connected();
+  rules::HandLink link = hand_link();
   std::string label;
-  if (!g.is_open()) {
+  if (link == rules::HandLink::PortBusy) {
     label = "hand: port busy";
   } else if (!live) {
-    label = "hand: off";
+    label = link == rules::HandLink::Starting ? "hand: starting"
+            : link == rules::HandLink::NoAnswer ? "hand: no answer" : "hand: off";
   } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
     label = "hand: following";
   } else if (g.seconds_since_gesture() < 2) {
@@ -940,26 +973,79 @@ void App::draw_panel(Rectangle r, const char* title) {
 
 // ------------------------------------------------------------------ sidecar
 
-// Starts the camera script in its own minimised window. Hand control is a
-// Windows feature; other systems only build the game for the CI tests.
-void App::start_sidecar() {
-#ifdef _WIN32
-  // The gesture folder sits next to the executable in the Windows zip, and
-  // one or two levels up in a build folder (build/ or build/Release/)
-  std::string exe_dir = GetApplicationDirectory();
-  std::string dirs[] = {exe_dir + "gesture/", exe_dir + "../gesture/",
-                        exe_dir + "../../gesture/", "gesture/"};
-  for (const std::string& dir : dirs) {
-    // run_windows.bat sets up Python + MediaPipe on first use
-    std::string bat = dir + "run_windows.bat";
-    if (!FileExists(bat.c_str())) continue;
-    std::string cmd = "start \"Tetris++ hand control\" /min cmd /c \"" + bat + "\"";
-    std::cout << "Starting gesture sidecar: " << cmd << std::endl;
-    if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;
-    return;
+// The player switched hand control on or off (H key or the main menu)
+void App::toggle_hand_control() {
+  GestureSource& g = input->gestures();
+  if (!g.is_open()) return;  // another program has the port: nothing to switch
+  apply_hand(hand.toggle(GetTime(), g.has_sidecar()));
+  profile.hand_control = hand.wanted();
+  profile.save();
+  sound::play(Sfx::MenuSelect);
+  refresh_main_menu();
+}
+
+// Keeps the camera script in step with the switch; called every frame
+void App::update_hand_control() {
+  GestureSource& g = input->gestures();
+  apply_hand(hand.update(GetTime(), g.has_sidecar()));
+  bool on = g.has_sidecar();
+  if (on != hand_was_on) {
+    hand_was_on = on;
+    std::cout << (on ? "hand: connected" : "hand: stopped") << std::endl;
   }
-  std::cerr << "Could not find gesture/run_windows.bat" << std::endl;
+  refresh_main_menu();  // its hand control line follows the state
+}
+
+void App::apply_hand(rules::HandSwitch::Do what) {
+  if (what == rules::HandSwitch::Do::Launch) {
+    if (!start_sidecar()) hand.launch_failed();
+  } else if (what == rules::HandSwitch::Do::Quit) {
+    input->gestures().quit_sidecar();
+  }
+}
+
+rules::HandLink App::hand_link() const {
+  if (!input) return rules::HandLink::Off;
+  const GestureSource& g = input->gestures();
+  return hand.link(g.is_open(), g.has_sidecar(), GetTime());
+}
+
+// Starts the camera script in the background: gesture/run_windows.bat in its
+// own minimised window. --exit-with-game makes it close if the game stops
+// answering. Other systems only build the game for the CI tests, which name
+// a stand-in script in TETRIS_SIDECAR_CMD. Returns false if nothing was started.
+bool App::start_sidecar() {
+  std::string command;
+  const char* custom = std::getenv("TETRIS_SIDECAR_CMD");
+  if (custom && *custom) {
+    command = custom;
+  } else {
+#ifdef _WIN32
+    // The gesture folder sits next to the executable in the Windows zip, and
+    // one or two levels up in a build folder (build/ or build/Release/)
+    std::string exe_dir = GetApplicationDirectory();
+    std::string dirs[] = {exe_dir + "gesture/", exe_dir + "../gesture/",
+                          exe_dir + "../../gesture/", "gesture/"};
+    for (const std::string& dir : dirs) {
+      // run_windows.bat sets up Python + MediaPipe on first use
+      std::string bat = dir + "run_windows.bat";
+      if (!FileExists(bat.c_str())) continue;
+      command = "\"" + bat + "\" --exit-with-game";
+      break;
+    }
+    if (command.empty()) {
+      std::cerr << "Could not find gesture/run_windows.bat" << std::endl;
+      return false;
+    }
 #else
-  std::cerr << "Hand control is only available on Windows" << std::endl;
+    std::cerr << "Hand control is only available on Windows" << std::endl;
+    return false;
 #endif
+  }
+  std::cout << "hand: starting" << std::endl;
+  if (std::system(rules::background_command(command).c_str()) != 0) {
+    std::cerr << "Failed to start the camera script" << std::endl;
+    return false;
+  }
+  return true;
 }

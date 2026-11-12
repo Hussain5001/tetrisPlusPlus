@@ -9,15 +9,14 @@
 #include "tests/TestModes.h"
 
 // Usage:
-//   Tetris              play the game (gestures work if the sidecar is running)
-//   Tetris --gestures   also start the camera script (gesture/run_windows.bat)
+//   Tetris              play the game. Hand control is switched on and off
+//                       inside it (the H key) and remembered in profile.json
 //   Tetris --test       run the unit tests instead of the game
 int main(int argc, char** argv) {
   bool run_tests = false;
   App tetr;
   for (int i = 1; i < argc; i++) {
     if (std::strcmp(argv[i], "--test") == 0) run_tests = true;
-    if (std::strcmp(argv[i], "--gestures") == 0) tetr.launch_gesture_sidecar = true;
   }
 
   if (run_tests) {

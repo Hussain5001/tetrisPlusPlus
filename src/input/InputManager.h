@@ -18,6 +18,7 @@ class InputManager {
   const std::vector<Action>& poll();
 
   const GestureSource& gestures() const { return gestures_; }
+  GestureSource& gestures() { return gestures_; }
 
  private:
   struct RepeatKey {

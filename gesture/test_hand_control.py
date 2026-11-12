@@ -133,10 +133,12 @@ class FakeLandmarker:
         self.closed = True
 
 
-def run_main(frames, *args, preview=False, camera_fps=30.0):
+def run_main(frames, *args, preview=False, camera_fps=30.0, game=None):
     """Runs hand_control.main() on scripted frames and returns the UDP
     datagrams it sent, plus the fakes for further checks. The frames are
-    read one by one (--sync-capture), so every run gives the same result."""
+    read one by one (--sync-capture), so every run gives the same result.
+    game: what the game "sends back", a function of the frame number that
+    returns (answered, quit) in place of poll_game()."""
     receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     receiver.bind(("127.0.0.1", 0))
     receiver.settimeout(0.2)
@@ -152,9 +154,17 @@ def run_main(frames, *args, preview=False, camera_fps=30.0):
     if not preview:
         argv.append("--no-preview")
     out = io.StringIO()
+    polls = []
+
+    def fake_poll(sock):
+        polls.append(1)
+        return game(len(polls) - 1)
+
     # The fake frames are landmark lists, not pictures, so nothing is drawn
     # on them here (SmallPieceTests draws the preview)
     with mock.patch.object(sys, "argv", argv), \
+            mock.patch.object(hand_control, "poll_game",
+                              fake_poll if game else hand_control.poll_game), \
             mock.patch.object(hand_control, "time", clock), \
             mock.patch.object(hand_control, "ensure_model", lambda: "model.task"), \
             mock.patch.object(hand_control, "draw_preview", lambda *a: None), \
@@ -351,6 +361,84 @@ class CameraTests(unittest.TestCase):
         self.assertIn("No webcam found", str(err.exception.code))
         self.assertIn("clip.mp4", shown.getvalue())
         self.assertEqual(opened, ["clip.mp4"])
+
+
+class GameLinkTests(unittest.TestCase):
+    """The game answers keep-alives ("k") and can tell the script to close
+    ("Q"): that is how hand control is switched off without closing windows."""
+
+    def test_keep_alives_continue_while_commands_flow(self):
+        # position mode sends a column every frame; the game still needs "K"
+        messages, *_ = run_main(still(0.5, 0.5, 2.0), "--mode", "position")
+        self.assertGreater(len([m for m in messages if m.startswith("@")]), 50)
+        self.assertGreaterEqual(messages.count("K"), 3)
+
+    def test_closes_when_the_game_says_quit(self):
+        _, camera, landmarker, out = run_main(
+            still(0.5, 0.5, 3.0), game=lambda frame: (True, frame == 20))
+        self.assertEqual(len(camera.frames), 90 - 21)       # stopped on that frame
+        self.assertIn("switched off in the game", out)
+        self.assertTrue(camera.released and landmarker.closed)
+
+    def test_closes_when_the_game_is_gone(self):
+        silent = lambda frame: (False, False)  # noqa: E731
+        _, camera, _, out = run_main(still(0.5, 0.5, 10.0), "--exit-with-game", game=silent)
+        used = 300 - len(camera.frames)
+        self.assertAlmostEqual(used / 30, hand_control.GAME_TIMEOUT, delta=0.2)
+        self.assertIn("not answering", out)
+
+    def test_stays_while_the_game_answers(self):
+        # the game answers every keep-alive; one slow answer is no reason to leave
+        answers = lambda frame: (frame % 15 == 0 and not 100 < frame < 200, False)  # noqa: E731
+        _, camera, _, out = run_main(still(0.5, 0.5, 10.0), "--exit-with-game", game=answers)
+        self.assertEqual(camera.frames, [])
+        self.assertNotIn("not answering", out)
+
+    def test_started_by_hand_it_waits_for_the_game(self):
+        silent = lambda frame: (False, False)  # noqa: E731
+        _, camera, _, out = run_main(still(0.5, 0.5, 10.0), game=silent)
+        self.assertEqual(camera.frames, [])
+        self.assertNotIn("not answering", out)
+
+    def socket_pair(self):
+        game = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        game.bind(("127.0.0.1", 0))
+        game.settimeout(1.0)
+        script = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        script.setblocking(False)
+        self.addCleanup(game.close)
+        self.addCleanup(script.close)
+        return game, script
+
+    @staticmethod
+    def wait_readable(sock):
+        import select
+        select.select([sock], [], [], 1.0)
+
+    def test_poll_game_reads_answers_and_quit(self):
+        game, script = self.socket_pair()
+        self.assertEqual(hand_control.poll_game(script), (False, False))   # nothing sent yet
+        script.sendto(b"K", game.getsockname())
+        data, address = game.recvfrom(64)
+        self.assertEqual(data, b"K")
+        game.sendto(b"k", address)
+        self.wait_readable(script)
+        self.assertEqual(hand_control.poll_game(script), (True, False))
+        self.assertEqual(hand_control.poll_game(script), (False, False))   # read only once
+        game.sendto(b"k", address)
+        game.sendto(b"Q", address)
+        self.wait_readable(script)
+        real_time.sleep(0.05)
+        self.assertEqual(hand_control.poll_game(script), (True, True))
+
+    def test_poll_game_survives_a_game_that_is_not_running(self):
+        game, script = self.socket_pair()
+        port = game.getsockname()[1]
+        game.close()                                  # nobody listens there now
+        for _ in range(3):
+            script.sendto(b"K", ("127.0.0.1", port))
+            real_time.sleep(0.02)
+            self.assertEqual(hand_control.poll_game(script), (False, False))
 
 
 class BackendTests(unittest.TestCase):

@@ -115,17 +115,18 @@ class TestData {
     p.ghost = false;
     p.crt = false;
     p.sound = false;
+    p.hand_control = true;
     p.save(path);
     Profile q;
     q.load(path);
     std::remove(path.c_str());
     test::check(q.zen_level == 8 && q.zen_pace == 3 && q.phosphor == 1 && !q.ghost && !q.crt &&
-                    !q.sound,
+                    !q.sound && q.hand_control,
                 "profile is saved and reloaded");
     Profile fresh;
     fresh.load(test::temp_file("no_profile.json"));
     test::check(fresh.zen_level == 5 && fresh.zen_pace == 2 && fresh.ghost && fresh.crt &&
-                    fresh.sound,
+                    fresh.sound && !fresh.hand_control,
                 "profile defaults on first run");
   }
 

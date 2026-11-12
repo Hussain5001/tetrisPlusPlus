@@ -2,8 +2,9 @@
 """Hands-free controller for Tetris++.
 
 Reads the webcam, tracks one hand with MediaPipe and sends commands to the
-game over UDP (127.0.0.1:5005). The game starts it for you (Tetris.exe
---gestures, through gesture\\run_windows.bat). To run it yourself:
+game over UDP (127.0.0.1:5005). The game starts it for you when hand
+control is switched on (the H key), through gesture\\run_windows.bat. To run
+it yourself:
 
     py gesture/hand_control.py                # flick mode (default)
     py gesture/hand_control.py --mode point   # point and hold
@@ -31,6 +32,10 @@ Tuning
     --record clip.jsonl  save every frame's hand landmarks and the commands
                        sent; replay.py runs the detector over such a file
     --backend dshow    open the camera through DirectShow instead of the default
+
+The game switches this program off again: it closes when the game sends "Q"
+(hand control switched off, or the game quit) and, with --exit-with-game,
+when the game no longer answers its keep-alives.
 """
 from __future__ import annotations
 
@@ -70,6 +75,8 @@ HAND_CONNECTIONS = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7),
 LABELS = {"L": "LEFT", "R": "RIGHT", "H": "DROP", "U": "ROTATE", "C": "SELECT",
           "P": "PAUSE"}
 BACKENDS = ("auto", "dshow", "msmf")
+KEEPALIVE_INTERVAL = 0.5    # seconds between "K" keep-alives to the game
+GAME_TIMEOUT = 5.0          # --exit-with-game: close after this long without an answer
 PREVIEW_INTERVAL = 0.06     # seconds between preview redraws: every 2nd frame at 30 fps
 STATS_PERIOD = 5.0          # --stats prints one line this often (seconds)
 RECORDING_VERSION = 1
@@ -320,6 +327,25 @@ class Recorder:
         self._file.close()
 
 
+def poll_game(sock):
+    """Reads what the game has sent back, without waiting. Returns
+    (answered, quit): the game answered a keep-alive ("k"), and the game
+    wants this program to close ("Q")."""
+    answered = quit_now = False
+    while True:
+        try:
+            data = sock.recv(64)
+        except BlockingIOError:
+            break  # nothing waiting
+        except OSError:
+            # Windows reports here that nobody listens on the game's port:
+            # the game isn't running (yet, or any more)
+            break
+        answered = answered or b"k" in data
+        quit_now = quit_now or b"Q" in data
+    return answered, quit_now
+
+
 # ------------------------------------------------------------ preview
 
 def draw_preview(frame, landmarks, detector, fps, flash):
@@ -393,6 +419,8 @@ def main():
                     help="print frame rate, tracking time and lost-hand counts every 5 s")
     ap.add_argument("--record", metavar="FILE",
                     help="save landmarks and commands of every frame (for replay.py)")
+    ap.add_argument("--exit-with-game", action="store_true",
+                    help="close when the game stops answering (the game starts it this way)")
     ap.add_argument("--sync-capture", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
 
@@ -425,6 +453,7 @@ def main():
             min_tracking_confidence=0.5))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setblocking(False)
     target = ("127.0.0.1", args.port)
     print(f"Sending gestures to udp://127.0.0.1:{args.port} ({detector.mode} mode)")
 
@@ -433,6 +462,7 @@ def main():
     first_stamp = None
     last_now = 0.0
     last_keepalive = 0.0
+    last_answer = 0.0
     last_preview = -1.0
     last_ts_ms = -1
     fps, flash = 0.0, None
@@ -468,9 +498,21 @@ def main():
                     if c in LABELS:
                         print(LABELS[c], flush=True)
                         flash = (LABELS[c], time.perf_counter())
-            elif now - last_keepalive > 0.5:
-                sock.sendto(b"K", target)  # tells the game we're alive
+            if now - last_keepalive > KEEPALIVE_INTERVAL:
+                sock.sendto(b"K", target)  # tells the game we're alive; it answers "k"
                 last_keepalive = now
+
+            # The game switches hand control off by telling us to quit, and
+            # we don't stay behind when it has gone
+            answered, quit_now = poll_game(sock)
+            if quit_now:
+                print("Hand control was switched off in the game.")
+                break
+            if answered:
+                last_answer = now
+            if args.exit_with_game and now - last_answer > GAME_TIMEOUT:
+                print("The game is not answering any more, closing.")
+                break
 
             if recorder:
                 recorder.frame(now, hand, commands)

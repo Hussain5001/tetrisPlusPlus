@@ -1,7 +1,8 @@
 #pragma once
 #include <string>
 
-// The player's last choices on the Zen setup screen, kept in profile.json
+// The player's last choices (Zen setup screen, hand control), kept in
+// profile.json
 struct Profile {
   int zen_level = 5;      // 1-10
   int zen_pace = 2;       // index into App's pace list (chill/steady/rising/brutal)
@@ -9,6 +10,7 @@ struct Profile {
   bool ghost = true;      // show where the block will land
   bool crt = true;        // CRT screen effect
   bool sound = true;
+  bool hand_control = false;  // start the camera script with the game
 
   void load(const std::string& path = "profile.json");
   bool save(const std::string& path = "profile.json") const;

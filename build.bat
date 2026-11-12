@@ -1,5 +1,5 @@
 @echo off
-rem Builds Tetris++ on Windows and starts it with hand control.
+rem Builds Tetris++ on Windows and starts it (press H in the game for hand control).
 rem Needs Git, CMake and the Visual Studio C++ build tools; see README.md,
 rem "Play on Windows". Run it again after changing the code.
 setlocal
@@ -42,4 +42,4 @@ if errorlevel 1 (
 
 set "EXE=build\Release\Tetris.exe"
 if not exist "%EXE%" set "EXE=build\Tetris.exe"
-start "" "%EXE%" --gestures
+start "" "%EXE%"
