@@ -37,7 +37,7 @@ screenshots are taken the same way with `LIBGL_ALWAYS_SOFTWARE=1` and ImageMagic
 | `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()` / `move_to_column()`, wall kicks, `tick(now)` gravity with optional `lock_delay`, `piece_id`, `next_block` (the preview; `random_block()` hands it out and takes a new one from the 7-piece bag). `block_attach()` is shared by all modes: lock the block, clear full rows, call the mode's `on_lines_cleared(n)` for scoring, spawn the next block, and end the game (`on_top_out()`) if it has no room |
 | `src/zen_mode.*` | `ZenSettings` (start level, lines per level), `level`, `drop_interval_for()`, `multiplier_for()`, `update_level()`, save/load incl. level data (`load_game_state` returns false if there is no usable save). Default `ZenMode()` = level 1, x1, 5 lines per level (the original tests rely on it) |
 | `src/time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The two timed modes (scoring, finish rules); `TimeDependentMode` has `pause_timer()`/`resume_timer()` on a steady clock and stops it when the board fills up |
-| `src/AppRules.h` | Small decisions the App makes, as pure code without raylib so tests can check them: `rules::pause_on_focus_loss`, `rules::HandSwitch` (when the camera script is started and stopped: toggle, still starting, started by hand, closed by itself), `rules::HandFollow` (arrow keys win until the hand moves to another column), `rules::HandLostPause` (pause 1.5 s after the hand leaves, unless the keyboard takes over), `rules::background_command` |
+| `src/AppRules.h` | Small decisions the App makes, as pure code without raylib so tests can check them: `rules::pause_on_focus_loss`, `rules::HandSwitch` (when the camera script is started and stopped: toggle, still starting, started by hand, closed by itself), `rules::HandFollow` (arrow keys win until the hand moves to another column), `rules::HandLostPause` (pause 1.5 s after the hand leaves, unless the keyboard takes over), `rules::hand_clicks` (in menus a gesture pinch/fist becomes `Action::Click` while the pointer is live; keys never do), `rules::background_command` |
 | `src/HighScores.*`, `src/Profile.*` | `scores.json` (top 5 + last run per mode) and `profile.json` (Zen setup choices); both tolerate missing/broken files |
 | `src/Sound.*` | Beeps generated in code (`sound::play(Sfx::...)`); no-op without an audio device |
 | `src/board.*` | 20x10 grid (raw `int**`, not copyable), row clearing, drawing; records `last_cleared_rows`/`clear_events` for the flash effect. Note: `is_cell_within_bounds()` returns true for a cell *outside* the grid |
@@ -45,7 +45,7 @@ screenshots are taken the same way with `LIBGL_ALWAYS_SOFTWARE=1` and ImageMagic
 | `src/Color.*` | Palette; `cell_color(id)` wraps ids > 7 (old saves used random ids up to 10) |
 | `src/App.*` | The one window and the scenes (Boot, MainMenu, ZenSetup, Playing with countdown, Paused, GameOver), sidebar, effects (sliding block, sparks, trails, shake), sounds and high-score recording. It draws to an 800x700 render texture that is letterboxed into the resizable window; mouse coordinates are remapped with `SetMouseOffset`/`SetMouseScale`. Hand control: `toggle_hand_control()` (H key, main-menu line), `update_hand_control()` every frame, `start_sidecar()` launches `gesture\run_windows.bat --exit-with-game` (Windows only) |
 | `src/ui/Draw.*` | Phosphor themes (`set_phosphor`, `theme()`, `block_color`), `draw_cell`/`draw_ghost_cell`/`draw_empty_cell`, block-letter logo, font and text helpers, `mouse_active()` |
-| `src/ui/Widgets.*` | `ui::text_button` and `ui::Menu` (terminal-style list with optional values; keyboard, gesture and mouse) |
+| `src/ui/Widgets.*` | `ui::text_button` and `ui::Menu` (terminal-style list with optional values; keyboard, gesture, mouse and the hand as a cursor: `run(..., const Pointer* hand)`, `row_at`/`point_at` hit tests, `Action::Click` selects a line or cycles a value) |
 | `assets/shaders/crt.fs` | CRT post-process shader applied to the 800x700 render texture (`time`, `strength` uniforms) |
 | `src/input/` | `Action` enum, `InputManager` (keyboard with DAS 170 ms / ARR 50 ms + gestures), `GestureSource` (non-blocking UDP on 127.0.0.1:5005; answers the camera script's keep-alives, `has_sidecar()`, `quit_sidecar()`, the follow-mode pointer `pointer_x()`/`pointer_live()`), `ColumnTracker` (pointer → column with hysteresis), `UdpProbe` (a plain socket for the tests) |
 | `src/tests/` | C++ tests, run by `Tetris --test`: `TestGame`, `TestModes`, `TestData`, `TestInput`, and `TestLegacy` (the original project's unit tests) |
@@ -100,8 +100,12 @@ treat that as "not there", not as a failure.
 - Time camera frames with `time.perf_counter()`, never `time.monotonic()`: on Windows (Python
   < 3.13) that clock only ticks every 15.6 ms, half a frame, which spoils every speed the
   detector measures.
-- Never start the real camera script from a test: set `TETRIS_SIDECAR_CMD` to a stand-in, as the
-  smoke test does (the game then runs that command instead of `run_windows.bat`).
+- Never start the real camera script from a test or a manual drive of the game: set
+  `TETRIS_SIDECAR_CMD` to a stand-in, as the smoke test does (the game then runs that command
+  instead of `run_windows.bat`). Driving the menus by UDP can switch hand control on by accident,
+  and the real script rebuilds the player's Python environment and opens the webcam.
+- The gesture socket must not be inheritable (`new_udp_socket`): the camera script is a child of
+  the game, and an inherited socket keeps port 5005 taken after the game has closed.
 - Don't open the player's webcam from tests or tooling. The real script can be exercised without
   it on a video file (`--camera clip.avi --no-preview --stats`).
 - Player data (`scores.json`, `profile.json`, `game_state.json`) is written to the folder the game

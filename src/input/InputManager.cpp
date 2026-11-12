@@ -28,6 +28,7 @@ const std::vector<Action>& InputManager::poll() {
   if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) actions_.push_back(Action::Confirm);
   if (IsKeyPressed(KEY_BACKSPACE)) actions_.push_back(Action::Back);
   keyboard_used_ = !actions_.empty();
+  gesture_start_ = actions_.size();
 
   gestures_.poll(actions_);
   return actions_;

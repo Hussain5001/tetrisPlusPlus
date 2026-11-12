@@ -14,7 +14,7 @@ Follow mode: hold your open hand in front of the camera.
     pinch (thumb to index fingertip) rotate
     close the hand into a fist       hard drop (open it again for the next)
     take the hand away               the game pauses after a moment
-    In menus: pinch moves up, a fist selects.
+    In menus: point at a line, make a fist to choose it (or pinch on a setting).
 The grey box in the preview is the zone that stands for the whole board;
 press c to put its middle where your hand is. --reach makes it wider or
 narrower.

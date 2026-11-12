@@ -108,6 +108,11 @@ class App {
   bool was_focused = true;
 
   void frame(const std::vector<Action>& actions);
+
+  // Where the hand points in menus, or nullptr if it isn't in view
+  ui::Pointer hand_cursor{};
+  const ui::Pointer* hand_pointer();
+  void draw_hand_cursor();
   void handle_global_keys();
 
   // Scenes

@@ -26,7 +26,9 @@ typedef SOCKET Socket;
 typedef int Socket;
 #endif
 
-// Opens a UDP socket; returns -1 if that fails
+// Opens a UDP socket; returns -1 if that fails. Programs the game starts
+// (the camera script) don't inherit it: an inherited socket would keep the
+// port taken after the game has closed, and the next start would find it busy.
 long long new_udp_socket() {
 #ifdef _WIN32
   WSADATA wsa;
@@ -36,9 +38,12 @@ long long new_udp_socket() {
     WSACleanup();
     return -1;
   }
+  SetHandleInformation((HANDLE)s, HANDLE_FLAG_INHERIT, 0);
   return (long long)s;
 #else
-  return socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  if (s >= 0) fcntl(s, F_SETFD, FD_CLOEXEC);
+  return s;
 #endif
 }
 
@@ -199,6 +204,17 @@ bool GestureSource::send_to_local(int port, const std::string& data) {
 }
 
 bool GestureSource::connected() const { return now() - last_packet_ < 3.0; }
+
+bool GestureSource::inherited_by_children() const {
+  if (sock_ < 0) return false;
+#ifdef _WIN32
+  DWORD flags = 0;
+  if (!GetHandleInformation((HANDLE)sock_, &flags)) return false;
+  return (flags & HANDLE_FLAG_INHERIT) != 0;
+#else
+  return (fcntl((int)sock_, F_GETFD) & FD_CLOEXEC) == 0;
+#endif
+}
 
 bool GestureSource::has_sidecar() const {
   return peer_len_ > 0 && now() - last_keep_alive_ < 3.0;

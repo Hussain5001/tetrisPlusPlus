@@ -204,13 +204,16 @@ void App::handle_global_keys() {
 }
 
 // Updates and draws one frame of the current scene
-void App::frame(const std::vector<Action>& actions) {
+void App::frame(const std::vector<Action>& play_actions) {
+  // In menus a pinch or a fist clicks the line the hand points at
+  std::vector<Action> actions = rules::hand_clicks(
+      play_actions, input->gesture_start(), input->gestures().pointer_live());
   switch (scene) {
     case Scene::Boot: boot_scene(actions); break;
     case Scene::MainMenu: main_menu_scene(actions); break;
     case Scene::ZenSetup: zen_setup_scene(actions); break;
     case Scene::Playing:
-      update_game(actions);
+      update_game(play_actions);
       if (!game) break;
       draw_board();
       draw_sidebar();
@@ -221,6 +224,25 @@ void App::frame(const std::vector<Action>& actions) {
     case Scene::Paused: pause_scene(actions); break;
     case Scene::GameOver: game_over_scene(actions); break;
   }
+  if (scene != Scene::Playing && scene != Scene::Boot) draw_hand_cursor();
+}
+
+// The hand's place on the screen (follow mode), or nullptr
+const ui::Pointer* App::hand_pointer() {
+  const GestureSource& g = input->gestures();
+  if (!g.pointer_live()) return nullptr;
+  hand_cursor = {g.pointer_x() * kWidth, g.pointer_y() * kHeight};
+  return &hand_cursor;
+}
+
+// A small box where the hand points, in menus
+void App::draw_hand_cursor() {
+  const ui::Pointer* hand = hand_pointer();
+  if (!hand) return;
+  const ui::Theme& t = ui::theme();
+  Rectangle box = {hand->x - 9, hand->y - 9, 18, 18};
+  DrawRectangleLinesEx(box, 2, t.bright);
+  DrawRectangle((int)hand->x - 3, (int)hand->y - 3, 6, 6, t.bright);
 }
 
 // ------------------------------------------------------------------ scenes
@@ -262,7 +284,7 @@ void App::main_menu_scene(const std::vector<Action>& actions) {
   ui::draw_logo(kWidth / 2, 70, 16, (float)GetTime());
   ui::text_centered("hands-free edition", kWidth / 2, 162, 28, t.dim);
 
-  int choice = main_menu.run(actions, 215, 240, 370, 46, 34);
+  int choice = main_menu.run(actions, 215, 240, 370, 46, 34, hand_pointer());
 
   // Best and last result for the focused mode
   int focused_mode = main_menu.focus + 1;
@@ -336,7 +358,7 @@ void App::zen_setup_scene(const std::vector<Action>& actions) {
   ui::text("zen // setup", 190, 50, 44, t.bright);
   ui::text("left/right change   up/down move   enter select", 190, 100, 22, t.dim);
 
-  int choice = zen_menu.run(actions, 190, 150, 420, 42, 32);
+  int choice = zen_menu.run(actions, 190, 150, 420, 42, 32, hand_pointer());
   for (Action a : actions) {
     if (a == Action::Pause || a == Action::Back) choice = 8;
   }
@@ -382,10 +404,10 @@ void App::pause_scene(const std::vector<Action>& actions) {
   Rectangle panel = {kWidth / 2 - 200.f, 180, 400, 110.f + pause_menu.items.size() * 44};
   draw_panel(panel, "paused");
   // The hint fits how the game is being played
-  ui::text_centered(input->gestures().pointer_seen() ? "pinch moves up, a fist selects"
+  ui::text_centered(input->gestures().pointer_seen() ? "point at a line, make a fist"
                                                      : "up/down move, enter selects",
                     kWidth / 2, panel.y + 58, 22, ui::theme().dim);
-  int choice = pause_menu.run(actions, panel.x + 60, panel.y + 96, 280, 44, 32);
+  int choice = pause_menu.run(actions, panel.x + 60, panel.y + 96, 280, 44, 32, hand_pointer());
   for (Action a : actions) {
     if (a == Action::Pause || a == Action::Back) choice = 0;
   }
@@ -450,7 +472,8 @@ void App::game_over_scene(const std::vector<Action>& actions) {
     y += 32;
   }
 
-  int choice = over_menu.run(actions, x + 60, panel.y + panel.height - 150, w - 120, 44, 32);
+  int choice = over_menu.run(actions, x + 60, panel.y + panel.height - 150, w - 120, 44, 32,
+                             hand_pointer());
   if (choice == 0) {
     start_game(mode, false);
   } else if (choice == 1) {

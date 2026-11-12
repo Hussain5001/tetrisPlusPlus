@@ -40,6 +40,9 @@ class GestureSource {
 
   bool is_open() const { return sock_ >= 0; }
 
+  // True if programs the game starts would inherit the socket (they must not)
+  bool inherited_by_children() const;
+
   // True while a sidecar is sending keep-alives (they stop when it closes),
   // until quit_sidecar().
   bool has_sidecar() const;

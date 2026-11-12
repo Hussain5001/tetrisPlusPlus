@@ -146,7 +146,12 @@ def main():
         fail("hand control off was not saved to profile.json", game)
     ok("hand control off: the camera script is told to close")
 
-    game.send("L", "L", "C", gap=0.4)   # main menu: back up to time attack
+    # Hand in the menu: point at "time attack" (the second line) and make a fist
+    for _ in range(4):
+        game.send("X500Y436", gap=0.1)
+    game.send("X500Y436H", gap=0.4)
+    game.wait_for("game: started time attack", 5, "the hand to choose time attack")
+    ok("the hand points at a menu line and a fist chooses it")
     time.sleep(2.2)                  # 3-2-1 countdown
     game.wait_for("game: started time attack", 5, "a game to start")
     for _ in range(60):              # hard drop until the board is full

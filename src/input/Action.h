@@ -10,7 +10,8 @@ enum class Action {
   Rotate,
   Pause,
   Confirm,
-  Back
+  Back,
+  Click  // the hand pinched or closed while pointing at a menu line
 };
 
 // Human readable name, used by the HUD to show the last gesture received
@@ -24,6 +25,7 @@ inline const char* action_name(Action a) {
     case Action::Pause: return "PAUSE";
     case Action::Confirm: return "SELECT";
     case Action::Back: return "BACK";
+    case Action::Click: return "CLICK";
   }
   return "?";
 }
