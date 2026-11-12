@@ -1,13 +1,9 @@
 #include "board.h"
-#include <iostream>
 #include "raylib.h"
 #include "ui/Draw.h"
 
 // constructor
 Board::Board(int row,int col):num_rows{row},num_cols{col}{
-
-// displays when grid is successfully constructed
-  std::cout<<"constructed grid"<<std::endl;
 
   //set values
   cell_size=30;
@@ -21,10 +17,6 @@ Board::Board(int row,int col):num_rows{row},num_cols{col}{
 
 // destructor
  Board::~Board() {
-  // displays state of grid before destroying it
-   show_state();
-   // displays message when grid is succesfully destroyed
-   std::cout<<"destroyed grid"<<std::endl;
    // deallocate memory for the grid
    for (int i = 0; i < num_rows; ++i) {
      delete[] grid[i];
@@ -46,16 +38,6 @@ void Board::clear_grid() {
     for (int j = 0; j < num_cols; j++) {
       grid[i][j] = 0;
     }
-  }
-}
-
-// displays the current state of the grid
-void Board::show_state() {
-  for(int r=0;r<num_rows;r++){
-    for(int c=0;c<num_cols;c++){
-      std::cout<<grid[r][c];
-    }
-    std::cout<<std::endl;
   }
 }
 

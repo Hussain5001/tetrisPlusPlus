@@ -1,6 +1,6 @@
 """Unit tests for the gesture detector using synthetic hand movements.
 
-Run with:  python3 -m unittest gesture/test_gestures.py   (from the repo root)
+Run with:  py -m unittest gesture/test_gestures.py   (from the repo root)
 """
 import os
 import sys

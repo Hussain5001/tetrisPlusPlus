@@ -2,43 +2,27 @@
 #include <iostream>
 
 #include "App.h"
-#include "UnitTestBoard.h"
-#include "UnitTestModes.h"
-#include "UnitTestTetromino.h"
 #include "tests/TestData.h"
 #include "tests/TestGame.h"
 #include "tests/TestInput.h"
+#include "tests/TestLegacy.h"
 #include "tests/TestModes.h"
 
 // Usage:
 //   Tetris              play the game (gestures work if the sidecar is running)
-//   Tetris --gestures   also start gesture/hand_control.py
+//   Tetris --gestures   also start the camera script (gesture/run_windows.bat)
 //   Tetris --test       run the unit tests instead of the game
-//   Tetris --gesture-bind 0.0.0.0
-//                       accept gestures from other machines (e.g. Windows
-//                       when the game runs in WSL); default is 127.0.0.1
 int main(int argc, char** argv) {
   bool run_tests = false;
   App tetr;
   for (int i = 1; i < argc; i++) {
     if (std::strcmp(argv[i], "--test") == 0) run_tests = true;
     if (std::strcmp(argv[i], "--gestures") == 0) tetr.launch_gesture_sidecar = true;
-    if (std::strcmp(argv[i], "--gesture-bind") == 0 && i + 1 < argc) {
-      tetr.gesture_bind_any = std::strcmp(argv[++i], "127.0.0.1") != 0;
-    }
   }
 
   if (run_tests) {
-    UnitTestBoard test_board;
-    test_board.run_test_board();
-
-    UnitTestTetromino test_tetromino;
-    test_tetromino.run_test_tetromino();
-
-    UnitTestModes test_modes;
-    test_modes.run_test_modes();
-
-    // Tetris++ tests: these count failures and set the exit code
+    // Every check counts; any failure sets the exit code
+    TestLegacy().run();
     TestGame().run();
     TestModes().run();
     TestData().run();

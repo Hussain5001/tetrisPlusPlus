@@ -1,5 +1,4 @@
 #include "time_attack_mode.h"
-#include <iostream>
 
 // Constructor for TimeAttackMode, inheriting from TimeDependentMode
 TimeAttackMode::TimeAttackMode():TimeDependentMode() {}
@@ -21,13 +20,10 @@ void TimeAttackMode::block_attach(){
     if(is_collision()){
         game_over=true;
         game_end();
-        std::cout<<"Game Over"<<std::endl;
     }
     lines_cleared=game_grid.row_clearance();
     score+=get_score();
     lines_cleared=0;
-    std::cout<<"score: "<<score<<std::endl;
-
 }
 // Function to calculate the score based on the number of lines cleared
 double TimeAttackMode::get_score() { 

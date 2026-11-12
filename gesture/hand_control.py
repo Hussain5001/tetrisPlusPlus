@@ -2,10 +2,11 @@
 """Hands-free controller for Tetris++.
 
 Reads the webcam, tracks one hand with MediaPipe and sends commands to the
-game over UDP (127.0.0.1:5005). Start the game first, then run:
+game over UDP (127.0.0.1:5005). The game starts it for you (Tetris.exe
+--gestures, through gesture\\run_windows.bat). To run it yourself:
 
-    python3 gesture/hand_control.py                # flick mode (default)
-    python3 gesture/hand_control.py --mode point   # point and hold
+    py gesture/hand_control.py                # flick mode (default)
+    py gesture/hand_control.py --mode point   # point and hold
 
 Point your index finger up, like showing "1" (other fingers curled in).
 
@@ -70,34 +71,6 @@ def ensure_model():
     return MODEL_PATH
 
 
-def running_in_wsl():
-    try:
-        with open("/proc/version") as f:
-            return "microsoft" in f.read().lower()
-    except OSError:
-        return False
-
-
-CAMERA_HELP_WSL = """
-No webcam found. You're running inside WSL, and WSL2 can't see the laptop's
-camera. Run the hand tracking on Windows instead; the game can stay in WSL:
-
-  1. Easiest (Windows 11): turn on mirrored networking so Windows and WSL
-     share localhost. Put this in %UserProfile%\\.wslconfig, then run
-     `wsl --shutdown` in PowerShell and reopen WSL:
-         [wsl2]
-         networkingMode=mirrored
-     Start the game in WSL (./build/Tetris), then on Windows double-click
-     gesture\\run_windows.bat
-
-  2. Without mirrored networking: start the game with
-         ./build/Tetris --gesture-bind 0.0.0.0
-     get the WSL address with `hostname -I` (first address), then on Windows:
-         gesture\\run_windows.bat --host <that address>
-
-See README.md, "Playing from WSL".
-"""
-
 CAMERA_HELP = """
 No webcam found. Check that a camera is connected and not used by another
 app, or pick one with --camera 1 (or a video file with --camera clip.mp4).
@@ -122,7 +95,7 @@ def open_camera(source, width, height):
             print(f"Using camera {candidate}")
         return cap
     print(f"Could not open camera/video: {source}", file=sys.stderr)
-    sys.exit(CAMERA_HELP_WSL if running_in_wsl() and isinstance(source, int) else CAMERA_HELP)
+    sys.exit(CAMERA_HELP)
 
 
 def draw_preview(frame, landmarks, detector, fps, flash):
@@ -180,8 +153,6 @@ def main():
     ap.add_argument("--camera", default="0", help="camera index or video file")
     ap.add_argument("--mode", choices=list(MODES) + list(MODE_ALIASES), default="flick",
                     help="flick (default), point, palm or position")
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="address of the game (the WSL IP when the game runs in WSL)")
     ap.add_argument("--port", type=int, default=5005)
     ap.add_argument("--width", type=int, default=640)
     ap.add_argument("--height", type=int, default=360)
@@ -214,8 +185,8 @@ def main():
             min_tracking_confidence=0.5))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    target = (args.host, args.port)
-    print(f"Sending gestures to udp://{args.host}:{args.port} ({detector.mode} mode)")
+    target = ("127.0.0.1", args.port)
+    print(f"Sending gestures to udp://127.0.0.1:{args.port} ({detector.mode} mode)")
 
     start = time.monotonic()
     last_keepalive = 0.0

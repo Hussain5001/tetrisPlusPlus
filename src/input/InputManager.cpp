@@ -2,11 +2,11 @@
 
 #include "raylib.h"
 
-InputManager::InputManager(bool any_interface) {
+InputManager::InputManager() {
   repeat_keys_ = {{KEY_LEFT, Action::Left, AutoRepeat()},
                   {KEY_RIGHT, Action::Right, AutoRepeat()},
                   {KEY_DOWN, Action::SoftDrop, AutoRepeat()}};
-  gestures_.open(kGesturePort, any_interface);
+  gestures_.open(kGesturePort);
 }
 
 const std::vector<Action>& InputManager::poll() {

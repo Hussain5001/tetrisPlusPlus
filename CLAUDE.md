@@ -2,50 +2,61 @@
 
 Guidance for Claude (and humans) working on **Tetris++**, an extension of the
 university project [Hussain5001/tetris](https://github.com/Hussain5001/tetris).
-The original repo is frozen; it's available here as the `upstream` remote.
-Never push to it.
+The original repo is frozen: never push to it. (Add it as the `upstream` remote if you
+need to compare against it.)
+
+**Tetris++ is a Windows game.** Hand control, packaging and the docs target Windows only. The
+code is kept compiling on Linux for one reason: CI has a headless display there for the
+end-to-end smoke test. Don't add Linux or WSL features or user instructions.
 
 ## Build, run, test
 
-```bash
-git submodule update --init            # raylib + nlohmann/json live in vendor/
-cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
-./build/Tetris                         # play
-./build/Tetris --gestures              # also launch gesture/hand_control.py
-./build/Tetris --test                  # C++ tests; non-zero exit code if any check fails
-xvfb-run -a python3 tests/smoke_test.py build/Tetris   # end-to-end: plays the game via UDP
-./build/Tetris --gesture-bind 0.0.0.0  # accept gestures from another machine (Windows → WSL)
-python3 -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+```powershell
+git submodule update --init                # raylib + nlohmann/json live in vendor/
+.\build.bat                                # configure + build Release, then start the game with hand control
+cmake --build build --config Release       # rebuild only
+build\Release\Tetris.exe                   # play
+build\Release\Tetris.exe --gestures        # also launch gesture\run_windows.bat (camera script)
+build\Release\Tetris.exe --test            # C++ tests; non-zero exit code if any check fails
+py -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+py tests/smoke_test.py build/Release/Tetris.exe   # end-to-end: plays the real game via UDP
 ```
 
-Linux needs `libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`.
-Headless screenshots: `xvfb-run -a -s "-screen 0 1024x768x24" <script>` with
-`LIBGL_ALWAYS_SOFTWARE=1`; take them with ImageMagick `import -window root` and drive the game by
-sending UDP commands (see below) instead of fake key presses.
+The smoke test opens the real game window, plays sounds and needs UDP port 5005 free (close the
+game first). It takes about a minute.
+
+CI only (Linux): needs `libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+libgl1-mesa-dev xvfb`; the smoke test runs as
+`xvfb-run -a -s "-screen 0 1024x768x24" python tests/smoke_test.py build/Tetris`. Headless
+screenshots are taken the same way with `LIBGL_ALWAYS_SOFTWARE=1` and ImageMagick
+`import -window root`, driving the game with UDP commands (see below) instead of fake key presses.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `src/game.*` | `Game` base class: piece movement, collision, `apply(Action)`, `hard_drop()`, ghost piece, `step_towards_column()`, wall kicks, `tick(now)` gravity with optional `lock_delay`, `piece_id` |
-| `src/zen_mode.*` | `ZenSettings` (start level, lines per level), `level`, `drop_interval_for()`, `multiplier_for()`, `update_level()`, save/load incl. level data. Default `ZenMode()` = level 1, x1, 5 lines per level (the original tests rely on it) |
+| `src/zen_mode.*` | `ZenSettings` (start level, lines per level), `level`, `drop_interval_for()`, `multiplier_for()`, `update_level()`, save/load incl. level data (`load_game_state` returns false if there is no usable save). Default `ZenMode()` = level 1, x1, 5 lines per level (the original tests rely on it) |
+| `src/time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The two timed modes (scoring, finish rules); `TimeDependentMode` has `pause_timer()`/`resume_timer()` |
 | `src/HighScores.*`, `src/Profile.*` | `scores.json` (top 5 + last run per mode) and `profile.json` (Zen setup choices); both tolerate missing/broken files |
 | `src/Sound.*` | Beeps generated in code (`sound::play(Sfx::...)`); no-op without an audio device |
-| `src/zen_mode.*`, `time_attack_mode.*`, `first_forty_mode.*`, `time_dependent_mode.*` | The three modes (scoring, finish rules, Zen save/load to `game_state.json`); `TimeDependentMode` has `pause_timer()`/`resume_timer()` |
-| `src/board.*` | 20x10 grid (raw `int**`, not copyable), row clearing, drawing; records `last_cleared_rows`/`clear_events` for the flash effect |
+| `src/board.*` | 20x10 grid (raw `int**`, not copyable), row clearing, drawing; records `last_cleared_rows`/`clear_events` for the flash effect. Note: `is_cell_within_bounds()` returns true for a cell *outside* the grid |
 | `src/Tetromino/` | Base `Tetromino` + one class per piece; each constructor sets its fixed `color_id` (I=1 … Z=7) |
 | `src/Color.*` | Palette; `cell_color(id)` wraps ids > 7 (old saves used random ids up to 10) |
-| `src/App.*` | The one window and the scenes (Boot, MainMenu, ZenSetup, Playing with countdown, Paused, GameOver), sidebar, effects (sliding block, sparks, trails, shake), sounds and high-score recording. It draws to an 800x700 render texture that is letterboxed into the resizable window; mouse coordinates are remapped with `SetMouseOffset`/`SetMouseScale` |
+| `src/App.*` | The one window and the scenes (Boot, MainMenu, ZenSetup, Playing with countdown, Paused, GameOver), sidebar, effects (sliding block, sparks, trails, shake), sounds and high-score recording. It draws to an 800x700 render texture that is letterboxed into the resizable window; mouse coordinates are remapped with `SetMouseOffset`/`SetMouseScale`. `start_sidecar()` launches `gesture\run_windows.bat` (Windows only) |
 | `src/ui/Draw.*` | Phosphor themes (`set_phosphor`, `theme()`, `block_color`), `draw_cell`/`draw_ghost_cell`/`draw_empty_cell`, block-letter logo, font and text helpers, `mouse_active()` |
 | `src/ui/Widgets.*` | `ui::text_button` and `ui::Menu` (terminal-style list with optional values; keyboard, gesture and mouse) |
 | `assets/shaders/crt.fs` | CRT post-process shader applied to the 800x700 render texture (`time`, `strength` uniforms) |
 | `src/input/` | `Action` enum, `InputManager` (keyboard with DAS 170 ms / ARR 50 ms + gestures), `GestureSource` (non-blocking UDP on 127.0.0.1:5005) |
+| `src/tests/` | C++ tests, run by `Tetris --test`: `TestGame`, `TestModes`, `TestData`, `TestInput`, and `TestLegacy` (the original project's unit tests) |
+| `tests/smoke_test.py` | End-to-end test: starts the game, plays it through UDP commands and checks the saved files |
 | `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. Modes `flick` (default: fingertip swipes in hand sizes, `_strokes`/`_flick`; the return stroke is ignored until the tip is back where the swipe began), `point` (index finger angle around the knuckle, learned resting angle, re-arm at rest), `palm` (old swipes, alias `swipe`), `position`. Finger modes: drop = fingertip down fast (`_drop`; a bent finger only drops once it points again within `tap_time`), open palm held = `P` pause, fist does nothing. Palm/position: fist = `C`. Pinch rotates everywhere; tolerates `max_gap_frames` missing frames. All thresholds are in `Config` |
 | `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
-| `gesture/test_gestures.py` | Tests using synthetic hand poses and movements |
-| `build.bat`, `packaging/windows/` | Windows: build from source and start; `play.bat` + README.txt go into the downloadable zip |
-| `.github/workflows/build.yml` | CI: Linux build + C++ and Python tests; Windows build + tests + `TetrisPlusPlus-windows` artifact (a release on `v*` tags) |
-| `gesture/run_windows.bat` | Windows launcher for the camera script (venv in `%LOCALAPPDATA%`); used when the game runs in WSL, which has no webcam. `App::start_sidecar()` starts it through WSL interop |
+| `gesture/test_gestures.py`, `gesture/test_hand_control.py` | Tests using synthetic hand poses and movements; OpenCV and MediaPipe are faked |
+| `gesture/run_windows.bat` | Launcher for the camera script. Keeps a Python environment in `%LOCALAPPDATA%\tetrisplusplus` and rebuilds it whenever `gesture/requirements.txt` (pinned versions) changes |
+| `build.bat`, `packaging/windows/` | Build from source and start; `play.bat` + README.txt go into the downloadable zip |
+| `.github/workflows/build.yml` | CI: Windows build + tests + `TetrisPlusPlus-windows` artifact (a release on `v*` tags); Linux build + tests + smoke test |
+| `docs/screenshots/`, `Project_Plan/` | README screenshots; the original university project plan (historical, not maintained) |
 
 ## Gesture protocol (UDP → `GestureSource::poll`)
 
@@ -62,10 +73,13 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
   through `Action`, never through raw key checks in game logic.
 - `GestureSource.cpp` must not include `raylib.h`, because it clashes with `winsock2.h` on Windows.
 - Don't copy `Game`/`Board` objects (they own raw memory); `App` holds the game in a `unique_ptr`.
-- Every feature needs tests. C++ tests live in `src/tests/` (`TestGame`, `TestModes`, `TestData`,
-  `TestInput`) and use `test::check(ok, "name")` from `TestRunner.h`; `--test` fails if any check
-  fails. Keep logic testable without a window (e.g. `ui::Menu::handle`, `AutoRepeat`, file paths as
-  parameters) and never let tests touch the player's real files (use `test::temp_file`).
+- Console output: game logic prints nothing. `App` prints one line per game event
+  (`game: started <mode>`, `game: over`, `game: save loaded`), and `tests/smoke_test.py` waits for
+  exactly these lines, so change both together.
+- Every feature needs tests. C++ tests live in `src/tests/` and use `test::check(ok, "name")` from
+  `TestRunner.h`; `--test` fails if any check fails. Keep logic testable without a window (e.g.
+  `ui::Menu::handle`, `AutoRepeat`, file paths as parameters) and never let tests touch the
+  player's real files (use `test::temp_file`).
   Python: `gesture/test_*.py` (fakes for cv2/mediapipe; `pointing()`/`tilt()`/`hold()` build
   synthetic finger poses). When planting bugs in Python, clear `gesture/__pycache__` or set
   `PYTHONDONTWRITEBYTECODE=1`: a same-size edit within the same second can run stale bytecode. New screens/flows: extend
@@ -74,9 +88,11 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
 - Look: lowercase terminal text, colours only from `ui::theme()`; test screens headlessly and
   check them with the CRT effect on.
 - The MediaPipe model (`gesture/models/`) is downloaded at runtime and git-ignored; don't commit it.
+- Player data (`scores.json`, `profile.json`, `game_state.json`) is written to the folder the game
+  is started from and is git-ignored.
 
 ## Git
 
-- Work on logically named branches (`fix/wsl-camera`, `feature/crt-ui-zen-levels`, …) cut from
-  the latest `main`, and open PRs into `main` of `Hussain5001/tetrisPlusPlus`.
+- Work on logically named branches (`chore/windows-only-cleanup`, `feature/follow-gestures`, …)
+  cut from the latest `main`, and open PRs into `main` of `Hussain5001/tetrisPlusPlus`.
 - Keep this file up to date when the architecture, commands or conventions change.

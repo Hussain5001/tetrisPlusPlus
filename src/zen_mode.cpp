@@ -2,7 +2,7 @@
 #include "zen_mode.h"
 #include <iostream>
 #include <fstream>
-#include "../vendor/json/single_include/nlohmann/json.hpp"
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 // Constructor for ZenMode class, inheriting from Game class
@@ -37,12 +37,7 @@ double ZenMode::multiplier_for(int level) {
 
 // Function to check if the game is finished
 bool ZenMode::is_game_finished() {
-    if (is_collision()) {
-        std::cout<<"Game Over"<<std::endl;
-        return true;
-    } else {
-        return false;
-    }
+    return is_collision();
 }
 // Function to attach the block to the grid
 void ZenMode::block_attach() {
@@ -56,7 +51,6 @@ void ZenMode::block_attach() {
     total_lines_cleared += lines_cleared;
     score += get_score() * score_multiplier;
     lines_cleared = 0;
-    std::cout << "score: " << score << std::endl;
 }
 // Function to calculate score based on the number of lines cleared
 double ZenMode::get_score() {
@@ -82,7 +76,6 @@ void ZenMode::update_level() {
         level++;
         drop_interval = drop_interval_for(level);
         score_multiplier = multiplier_for(level);
-        std::cout << "level " << level << std::endl;
     }
 }
 // Function to save the current game state to a JSON file
@@ -119,8 +112,9 @@ void ZenMode::save_game_state(const std::string& path) {
         std::cerr << "An error occurred: " << e.what() << std::endl;
     }
 }
- // Loading other game state data from the JSON file
-void ZenMode::load_game_state(const std::string& path) {
+// Function to load the game state from a JSON file. Returns false (and
+// leaves the game as it was) if the file is missing or unreadable.
+bool ZenMode::load_game_state(const std::string& path) {
     try {
         std::ifstream file(path);
         if (!file.is_open()) {
@@ -129,8 +123,6 @@ void ZenMode::load_game_state(const std::string& path) {
 
         json game_state;
         file >> game_state;
-
-        std::cout << "Reading from file: " << game_state << std::endl;
 
         if (game_state.contains("game_grid") && game_state["game_grid"].is_array()) {
             json grid_array = game_state["game_grid"];
@@ -141,7 +133,6 @@ void ZenMode::load_game_state(const std::string& path) {
                             game_grid.grid[i][j]=grid_array[i][j];
                         }
                     }
-                    std::cout << std::endl;
                 }
             }
         }
@@ -171,9 +162,11 @@ void ZenMode::load_game_state(const std::string& path) {
         read_int("total_lines_cleared", total_lines_cleared);
         read_int("lines_counter", lines_counter);
         if (settings.lines_per_level < 1) settings.lines_per_level = 5;
+        return true;
 
     } catch (const std::exception &e) {
         std::cerr << "An error occurred: " << e.what() << std::endl;
+        return false;
     }
 }
 

@@ -24,7 +24,7 @@ The faint `[]` outline at the bottom of the board (the "ghost") shows where the 
 * M: sound on/off, F11: fullscreen
 
 ### Hands-free controls
-Run `./build/Tetris --gestures` (after `pip install -r gesture/requirements.txt`) to play with your webcam:
+Start the game with `play.bat` (or `Tetris.exe --gestures`) to play with your webcam. It needs Python 3.10–3.12; the first start installs the camera packages by itself.
 Point your index finger up (other fingers curled in):
 * Swipe the finger left / right: move the block one column (bringing it back doesn't count)
 * Dip the finger down and straight again, or swipe the hand down: force fall (select in menus)

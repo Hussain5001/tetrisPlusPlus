@@ -51,6 +51,7 @@ public:
     // Function to save the game state to a JSON file
     void save_game_state(const std::string& path = "game_state.json");
 
-    // Function to load the game state from a JSON file
-    void load_game_state(const std::string& path = "game_state.json");
+    // Function to load the game state from a JSON file. Returns false if the
+    // file is missing or unreadable.
+    bool load_game_state(const std::string& path = "game_state.json");
 };

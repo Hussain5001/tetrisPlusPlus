@@ -18,17 +18,11 @@ public:
     // Method to clear the grid
     void clear_grid();
 
-    // Method to display the current state of the grid
-    void show_state();
-
     // Method to check if a cell is empty
     bool is_cell_empty(int row, int col);
 
     // Method to clear filled rows and shift the rows above down
     int row_clearance();
-
-    // Method to get the value at a specific cell
-    int get_cell_value(int row, int col);
 
     // Method to check if a particular row is completely filled
     bool is_row_full(int row);

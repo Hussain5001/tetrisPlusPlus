@@ -34,8 +34,9 @@ Hand control needs [Python 3.10–3.12](https://www.python.org/downloads/); tick
 to PATH" when installing. On the first start, a minimised "Tetris++ hand control" window installs
 MediaPipe (a minute or two). Then the camera preview opens and the game's HAND CONTROL box turns on.
 
-**To change the code on Windows**, clone into a normal Windows folder (not inside WSL) and
-use `build.bat`:
+## Building from source
+
+Tetris++ is a Windows game. To change the code, use `build.bat`:
 
 ```powershell
 winget install Git.Git Kitware.CMake
@@ -45,22 +46,8 @@ cd tetrisPlusPlus
 .\build.bat          # builds, then starts the game with hand control
 ```
 
-Everything runs on one machine that way, so the camera works without the WSL networking steps below.
-
-## Building
-
-```bash
-git clone --recursive https://github.com/Hussain5001/tetrisPlusPlus.git
-cd tetrisPlusPlus
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-./build/Tetris            # Windows: build\Debug\Tetris.exe
-```
-
-On Linux you need the X11/OpenGL headers for raylib
-(`sudo apt install libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`).
-
-If you cloned without `--recursive`, run `git submodule update --init` first.
+`build.bat` downloads raylib and nlohmann/json (git submodules) if they are missing and puts the
+game in `build\Release\Tetris.exe`. Run it again after changing the code.
 
 ## Keyboard controls
 
@@ -99,15 +86,16 @@ fastest time and only counts games where you actually cleared 40 lines.
 
 ## Hands-free play (camera gestures)
 
-```bash
-pip install -r gesture/requirements.txt      # mediapipe + opencv (Python 3.9-3.12)
-./build/Tetris --gestures                    # starts the game and the camera script
-# or run them separately:
-./build/Tetris
-python3 gesture/hand_control.py              # flick mode; add --mode point for point-and-hold
+```powershell
+build\Release\Tetris.exe --gestures     # starts the game and the camera script
+# or start the camera script yourself while the game is open:
+gesture\run_windows.bat                 # flick mode; add --mode point for point-and-hold
 ```
 
-The first run downloads the MediaPipe hand model (about 8 MB) to `gesture/models/`.
+`run_windows.bat` needs Python 3.10–3.12. On its first start it creates a Python environment in
+`%LOCALAPPDATA%\tetrisplusplus` and installs the packages pinned in `gesture/requirements.txt`
+(MediaPipe and OpenCV); it rebuilds that environment whenever the file changes.
+The first run also downloads the MediaPipe hand model (about 8 MB) to `gesture/models/`.
 The "HAND CONTROL" box in the game turns green when the camera script is connected,
 and every recognised gesture is shown briefly over the board.
 
@@ -147,35 +135,6 @@ Tips:
 - If the hand blurs for a frame or two during a quick move, the gesture still counts.
 - Good lighting and a plain background help MediaPipe the most.
 
-### Playing from WSL
-
-The native Windows version above is simpler. Use this only if you want to keep playing in WSL.
-
-
-WSL2 can't access your laptop's webcam (`Could not open camera/video: 0`). The game can stay
-in WSL, but the hand tracking has to run on Windows. It sends gestures to the game over the network.
-
-**Automatic:** `./build/Tetris --gestures` detects WSL and starts `gesture\run_windows.bat`
-on Windows for you. You need Python 3.10–3.12 installed on Windows
-([python.org](https://www.python.org/downloads/)). The first start sets up a Python environment
-in `%LOCALAPPDATA%\tetrisplusplus` and installs MediaPipe, which takes a minute.
-
-**Manual**, if you prefer to start it yourself:
-
-- *Windows 11 with mirrored networking* (Windows and WSL share `localhost`). Add this to
-  `%UserProfile%\.wslconfig`, run `wsl --shutdown`, then reopen WSL:
-  ```ini
-  [wsl2]
-  networkingMode=mirrored
-  ```
-  Start `./build/Tetris` in WSL, then double-click `gesture\run_windows.bat` on Windows. From
-  WSL, `explorer.exe gesture` opens that folder.
-- *Default (NAT) networking*: start the game with `./build/Tetris --gesture-bind 0.0.0.0`, get
-  the WSL address with `hostname -I` (first address), then on Windows run
-  `gesture\run_windows.bat --host <that address>`.
-
-The camera preview window opens on Windows. The game's "HAND CONTROL" box turns green once gestures arrive.
-
 ### How it works
 
 ```
@@ -185,33 +144,30 @@ webcam ──► hand_control.py ──(UDP 127.0.0.1:5005, e.g. "L", "H", "@4")
 ```
 
 The game reads the UDP socket without blocking every frame, so a gesture takes effect on
-the next frame after it arrives. You can also drive the game from any other program or
-script that sends these commands:
-
-```bash
-echo -n R | nc -u -w0 127.0.0.1 5005     # move right
-```
+the next frame after it arrives. The socket only listens on this computer (127.0.0.1). Any
+other program that sends these letters can drive the game too; `tests/smoke_test.py` does.
 
 ## Tests
 
-```bash
-./build/Tetris --test                     # C++ tests; exits with an error if any fail
-python3 -m unittest gesture/test_gestures.py gesture/test_hand_control.py
-xvfb-run -a python3 tests/smoke_test.py build/Tetris   # plays the real game headless
+```powershell
+build\Release\Tetris.exe --test           # C++ tests; exits with an error if any fail
+py -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+py tests/smoke_test.py build/Release/Tetris.exe   # plays the real game (opens its window)
 ```
 
-- **C++** (`src/UnitTest*.h` from the original project, and `src/tests/`): movement, the piece bag,
+- **C++** (`src/tests/`, including the original project's tests in `TestLegacy.h`): movement, the piece bag,
   soft/hard drop and ghost, gravity, lock delay, wall kicks, game over, line clearing, Zen levels,
   pace, multiplier and save files, the pause-aware timer, Time Attack and First 40 scoring, high
   scores, profile, colours, key auto-repeat, the UDP gesture protocol and menu navigation.
 - **Python**: the gesture detector with simulated hand and finger movements (flicks, point-and-hold,
   drift, jitter, blur gaps), and the camera script's main
   loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
-  camera fallback, WSL help, model download).
+  camera fallback, model download).
 - **Smoke test**: starts the game and plays it through UDP gesture commands: Time Attack to game
   over (checks `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
 
-CI runs all of these on every push (Linux and Windows).
+CI runs the C++ and Python tests on every push and builds the Windows download. It also builds
+the game on Linux, only because a headless display is available there for the smoke test.
 
 ## Credits
 
