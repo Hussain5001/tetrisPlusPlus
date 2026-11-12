@@ -831,31 +831,55 @@ void App::draw_sidebar() {
 
   const ScoreEntry* best = scores.best(mode);
   const ScoreEntry* last = scores.last(mode);
-  draw_score_line(x, 240, w, "best", best ? format_score(mode, *best) : "---", false);
-  draw_score_line(x, 276, w, "last", last ? format_score(mode, *last) : "---", false);
-  DrawRectangle((int)x, 318, (int)w, 1, t.faint);
+  draw_next_block(x, 228, w);
+  draw_score_line(x, 290, w, "best", best ? format_score(mode, *best) : "---", false);
+  draw_score_line(x, 324, w, "last", last ? format_score(mode, *last) : "---", false);
+  DrawRectangle((int)x, 362, (int)w, 1, t.faint);
 
   if (scene == Scene::Playing) {
-    if (ui::text_button({x, 336, w / 2 - 6, 40}, "pause", false)) pause_game();
-    if (ui::text_button({x + w / 2 + 6, 336, w / 2 - 6, 40}, "menu", false)) {
+    if (ui::text_button({x, 372, w / 2 - 6, 40}, "pause", false)) pause_game();
+    if (ui::text_button({x + w / 2 + 6, 372, w / 2 - 6, 40}, "menu", false)) {
       pause_game();  // the pause menu has "main menu" (and save in Zen)
       pause_menu.focus = (int)pause_menu.items.size() - 2;
     }
   }
 
-  float ky = 400;
+  float ky = 424;
   ui::text("keys", x, ky, 24, t.dim);
   const char* keys[][2] = {{"left/right", "move"},   {"up / x", "rotate"},
                            {"down", "soft drop"},    {"space", "hard drop"},
                            {"esc / p", "pause"},     {"m / f11", "mute / full"},
                            {"h", "hand on / off"}};
   for (int i = 0; i < 7; i++) {
-    ui::text(keys[i][0], x + 10, ky + 28 + i * 25, 24, t.text);
-    ui::text(keys[i][1], x + 160, ky + 28 + i * 25, 24, t.dim);
+    ui::text(keys[i][0], x + 10, ky + 26 + i * 24, 24, t.text);
+    ui::text(keys[i][1], x + 160, ky + 26 + i * 24, 24, t.dim);
   }
   if (!sound::enabled()) ui::text_right("[muted]", x + w, ky, 24, t.dim);
 
   draw_hand_status(x, 650, false);
+}
+
+// The block that comes next, small, at the right of a "> next" line
+void App::draw_next_block(float x, float y, float width) {
+  const ui::Theme& t = ui::theme();
+  ui::text("> next", x, y + 10, 28, t.dim);
+  if (game->game_over) return;
+  const int cell = 20;
+  const std::vector<Position>& cells = game->next_block.cells[0];
+  int min_r = 99, max_r = -99, min_c = 99, max_c = -99;
+  for (Position p : cells) {
+    min_r = std::min(min_r, p.row);
+    max_r = std::max(max_r, p.row);
+    min_c = std::min(min_c, p.column);
+    max_c = std::max(max_c, p.column);
+  }
+  // Right-aligned, centred on two rows of cells
+  float left = x + width - (max_c - min_c + 1) * cell;
+  float top = y + (2 - (max_r - min_r + 1)) * cell / 2.0f;
+  for (Position p : cells) {
+    ui::draw_cell((int)left + (p.column - min_c) * cell, (int)top + (p.row - min_r) * cell,
+                  cell, game->next_block.color_id);
+  }
 }
 
 void App::draw_hand_status(float x, float y, bool right_align) {

@@ -12,15 +12,17 @@ Game::Game() {
   score=0;
   // Initialize the block list
   block_list = get_blocks();
-  // Set the current block to a random Tetromino
+  // The first two blocks: the one that falls and the one shown as "next"
+  next_block = take_from_bag();
   current_block = random_block();
   // Set the game over state to false
   game_over=false;
 }
 
 
-// Function to generate a random Tetromino block
-Tetromino Game::random_block() {
+// Function to take a random block out of the bag (a new bag of all seven
+// shapes starts when it is empty)
+Tetromino Game::take_from_bag() {
     if (block_list.empty()){
         block_list=get_blocks();
     }
@@ -28,6 +30,14 @@ Tetromino Game::random_block() {
   int block_index = rand() % block_list.size();
   Tetromino blk =block_list[block_index];
   block_list.erase(block_list.begin()+block_index);
+  return blk;
+}
+
+// Function to bring in the next block: returns the block shown as "next"
+// and takes a new "next" out of the bag
+Tetromino Game::random_block() {
+  Tetromino blk = next_block;
+  next_block = take_from_bag();
 
   // A new block starts with a fresh lock delay
   piece_id++;

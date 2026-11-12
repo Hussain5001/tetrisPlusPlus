@@ -20,7 +20,7 @@ The game is pretty intuitive, wherein the tetrominoes can be controlled as follo
 * Spacebar: force the block to fall directly.
 * Esc or P: pause
 
-The faint `[]` outline at the bottom of the board (the "ghost") shows where the block will land. A block that lands can still be slid or rotated for half a second before it locks, and rotating next to a wall or another block nudges it into place (a "wall kick").
+The faint `[]` outline at the bottom of the board (the "ghost") shows where the block will land, and **next** in the sidebar shows the block that comes after it. A block that lands can still be slid or rotated for half a second before it locks, and rotating next to a wall or another block nudges it into place (a "wall kick").
 * H: hand control on/off, M: sound on/off, F11: fullscreen
 
 ### Hands-free controls

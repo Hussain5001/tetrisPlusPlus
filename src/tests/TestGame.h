@@ -54,6 +54,18 @@ class TestGame {
     int id = game.piece_id;
     game.random_block();
     test::check(game.piece_id == id + 1, "piece_id counts new blocks");
+
+    // The block shown as "next" is the one that comes
+    bool shown = true;
+    for (int i = 0; i < 20; i++) {
+      int next = game.next_block.color_id;
+      if (game.random_block().color_id != next) shown = false;
+    }
+    ZenMode dropping;
+    int next = dropping.next_block.color_id;
+    dropping.apply(Action::HardDrop);
+    test::check(shown && dropping.current_block.color_id == next,
+                "the next block is the one that comes");
   }
 
   void moves_and_walls() {
