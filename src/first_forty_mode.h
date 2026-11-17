@@ -7,6 +7,8 @@ class FirstFortyMode: public TimeDependentMode{
         int total_lines_cleared=0;
         bool is_game_finished();
         double get_score();
-        void block_attach();
 
+    protected:
+        // Function to count the rows cleared by the block that just landed
+        void on_lines_cleared(int lines) override;
 };

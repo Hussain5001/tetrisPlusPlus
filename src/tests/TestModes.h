@@ -20,6 +20,8 @@ class TestModes {
     timer_pause_and_end();
     time_attack_scoring();
     first_forty_finish();
+    modes_count_cleared_rows();
+    timed_game_stops_at_the_top();
   }
 
  private:
@@ -178,5 +180,34 @@ class TestModes {
     test::check(not_yet && game.is_game_finished(), "first 40 lines ends at 40 lines");
     test::sleep_ms(20);
     test::check(game.get_score() > 0.01, "first 40 lines scores by time");
+  }
+
+  // The modes share Game::block_attach(); each one only scores the rows
+  void modes_count_cleared_rows() {
+    FirstFortyMode forty;
+    for (int c = 0; c < 10; c++) forty.game_grid.grid[19][c] = 1;
+    forty.block_attach();
+    TimeAttackMode attack;
+    for (int r = 17; r < 20; r++) {
+      for (int c = 0; c < 10; c++) attack.game_grid.grid[r][c] = 1;
+    }
+    attack.block_attach();
+    test::check(forty.total_lines_cleared == 1 && test::near(attack.score, 1200),
+                "timed modes score the rows a block clears");
+  }
+
+  // A full board stops the clock of a timed game
+  void timed_game_stops_at_the_top() {
+    TimeAttackMode game;
+    game.game_start();
+    for (int r = 1; r < 20; r++) {
+      for (int c = 1; c < 10; c++) game.game_grid.grid[r][c] = 2;
+    }
+    game.apply(Action::HardDrop);  // lands at the top; the next block can't spawn
+    double ended = game.elapsed_seconds();
+    test::sleep_ms(40);
+    test::check(game.game_over && !game.timer_on &&
+                    test::near(game.elapsed_seconds(), ended, 1e-6),
+                "a full board ends a timed game and stops its clock");
   }
 };

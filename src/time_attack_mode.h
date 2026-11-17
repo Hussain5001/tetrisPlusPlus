@@ -14,6 +14,7 @@ public:
     // Function to calculate the score based on the lines cleared
     double get_score();
 
-    // Function to attach the block to the grid
-    void block_attach();
+protected:
+    // Function to score the rows cleared by the block that just landed
+    void on_lines_cleared(int lines) override;
 };

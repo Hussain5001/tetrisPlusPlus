@@ -5,7 +5,7 @@ TimeDependentMode::TimeDependentMode():Game() {}
 
 //Storing the time for the start of the game
 void TimeDependentMode::game_start() {
-  game_start_time = std::chrono::system_clock::now();
+  game_start_time = Clock::now();
   paused_duration = std::chrono::duration<double>(0);
   paused = false;
   timer_on = true;
@@ -14,15 +14,20 @@ void TimeDependentMode::game_start() {
 //Storing the ending time
 void TimeDependentMode::game_end(){
     resume_timer();
-    game_end_time=std::chrono::system_clock::now();
+    game_end_time=Clock::now();
     timer_on=false;
+}
+
+//Stopping the clock when the next block has no room
+void TimeDependentMode::on_top_out(){
+    game_end();
 }
 
 //Keeping the track of elapsed seconds
 double TimeDependentMode::elapsed_seconds(){
-    std::chrono::time_point<std::chrono::system_clock> end_t;
+    Clock::time_point end_t;
     if(timer_on){
-        end_t =std::chrono::system_clock::now(); //Current Time
+        end_t =Clock::now(); //Current Time
     }else{
         end_t=game_end_time;
     }
@@ -37,14 +42,14 @@ double TimeDependentMode::elapsed_seconds(){
 void TimeDependentMode::pause_timer(){
     if(timer_on && !paused){
         paused=true;
-        pause_start_time=std::chrono::system_clock::now();
+        pause_start_time=Clock::now();
     }
 }
 
 //Restarting the clock, not counting the time spent paused
 void TimeDependentMode::resume_timer(){
     if(paused){
-        paused_duration+=std::chrono::system_clock::now()-pause_start_time;
+        paused_duration+=Clock::now()-pause_start_time;
         paused=false;
     }
 }
