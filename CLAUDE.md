@@ -18,7 +18,7 @@ cmake --build build --config Release       # rebuild only
 build\Release\Tetris.exe                   # play
 build\Release\Tetris.exe --gestures        # also launch gesture\run_windows.bat (camera script)
 build\Release\Tetris.exe --test            # C++ tests; non-zero exit code if any check fails
-py -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+py -m unittest discover -s gesture         # Python tests (set PYTHONDONTWRITEBYTECODE=1)
 py tests/smoke_test.py build/Release/Tetris.exe   # end-to-end: plays the real game via UDP
 ```
 
@@ -52,8 +52,9 @@ screenshots are taken the same way with `LIBGL_ALWAYS_SOFTWARE=1` and ImageMagic
 | `src/tests/` | C++ tests, run by `Tetris --test`: `TestGame`, `TestModes`, `TestData`, `TestInput`, and `TestLegacy` (the original project's unit tests) |
 | `tests/smoke_test.py` | End-to-end test: starts the game, plays it through UDP commands and checks the saved files |
 | `gesture/gestures.py` | Detector with no camera dependency: landmarks → commands. Modes `flick` (default: fingertip swipes in hand sizes, `_strokes`/`_flick`; the return stroke is ignored until the tip is back where the swipe began), `point` (index finger angle around the knuckle, learned resting angle, re-arm at rest), `palm` (old swipes, alias `swipe`), `position`. Finger modes: drop = fingertip down fast (`_drop`; a bent finger only drops once it points again within `tap_time`), open palm held = `P` pause, fist does nothing. Palm/position: fist = `C`. Pinch rotates everywhere; tolerates `max_gap_frames` missing frames. All thresholds are in `Config` |
-| `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP |
-| `gesture/test_gestures.py`, `gesture/test_hand_control.py` | Tests using synthetic hand poses and movements; OpenCV and MediaPipe are faked |
+| `gesture/hand_control.py` | Webcam + MediaPipe Tasks `HandLandmarker` (VIDEO mode) → UDP. `LatestFrameReader` reads the camera on a thread and hands out only the newest frame (stale ones are skipped); video files go through `SequentialReader` and are timed by their own frame rate. `--stats` (`Stats`), `--record` (`Recorder`: JSONL with image + world landmarks and the commands sent), `--backend`. The preview is redrawn every `PREVIEW_INTERVAL`, not every frame |
+| `gesture/replay.py` | Runs the detector over a `--record` file with other settings (`--set name=value`, `--mode`) and counts missed/extra/false commands against `--expect` |
+| `gesture/test_gestures.py`, `gesture/test_hand_control.py`, `gesture/test_replay.py` | Tests using synthetic hand poses and movements; OpenCV and MediaPipe are faked (`run_main` runs the real main loop on scripted frames) |
 | `gesture/run_windows.bat` | Launcher for the camera script. Keeps a Python environment in `%LOCALAPPDATA%\tetrisplusplus` and rebuilds it whenever `gesture/requirements.txt` (pinned versions) changes |
 | `build.bat`, `packaging/windows/` | Build from source and start; `play.bat` + README.txt go into the downloadable zip |
 | `.github/workflows/build.yml` | CI: Windows build + tests + `TetrisPlusPlus-windows` artifact (a release on `v*` tags); Linux build + tests + smoke test |
@@ -89,6 +90,11 @@ Any new command needs to be added in three places: `GestureSource.cpp`, `gesture
 - Look: lowercase terminal text, colours only from `ui::theme()`; test screens headlessly and
   check them with the CRT effect on.
 - The MediaPipe model (`gesture/models/`) is downloaded at runtime and git-ignored; don't commit it.
+- Time camera frames with `time.perf_counter()`, never `time.monotonic()`: on Windows (Python
+  < 3.13) that clock only ticks every 15.6 ms, half a frame, which spoils every speed the
+  detector measures.
+- Don't open the player's webcam from tests or tooling. The real script can be exercised without
+  it on a video file (`--camera clip.avi --no-preview --stats`).
 - Player data (`scores.json`, `profile.json`, `game_state.json`) is written to the folder the game
   is started from and is git-ignored.
 

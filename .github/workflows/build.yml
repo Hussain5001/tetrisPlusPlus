@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Python tests (gesture detector and camera script)
-        run: python -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+        run: python -m unittest discover -s gesture
       - name: Smoke test (plays the real game headless)
         run: xvfb-run -a -s "-screen 0 1024x768x24" python tests/smoke_test.py build/Tetris
 
@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Python tests
-        run: python -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+        run: python -m unittest discover -s gesture
       - name: run_windows.bat sets up Python and starts the camera script
         shell: cmd
         run: |

@@ -134,6 +134,11 @@ Tips:
   bigger ones. `--no-vertical` turns off the drop. Thresholds are in `gesture/gestures.py` (`Config`).
 - If the hand blurs for a frame or two during a quick move, the gesture still counts.
 - Good lighting and a plain background help MediaPipe the most.
+- Measuring instead of guessing: `gestureun_windows.bat --stats` prints the real frame rate,
+  the tracking time and how often the hand was lost. `--record clip.jsonl` saves every frame's
+  hand landmarks; `py gesture/replay.py clip.jsonl --expect U=20 --set pinch_on=0.32` then runs
+  the detector over exactly those movements with other settings and counts missed, extra and
+  false commands (`--help` explains the options).
 
 ### How it works
 
@@ -151,7 +156,7 @@ other program that sends these letters can drive the game too; `tests/smoke_test
 
 ```powershell
 build\Release\Tetris.exe --test           # C++ tests; exits with an error if any fail
-py -m unittest gesture/test_gestures.py gesture/test_hand_control.py
+py -m unittest discover -s gesture       # Python tests (gesture detector, camera script, replay)
 py tests/smoke_test.py build/Release/Tetris.exe   # plays the real game (opens its window)
 ```
 
@@ -162,7 +167,8 @@ py tests/smoke_test.py build/Release/Tetris.exe   # plays the real game (opens i
 - **Python**: the gesture detector with simulated hand and finger movements (flicks, point-and-hold,
   drift, jitter, blur gaps), and the camera script's main
   loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
-  camera fallback, model download).
+  camera fallback, model download, frame timing, skipping stale frames, stats), and recording
+  and replaying a session.
 - **Smoke test**: starts the game and plays it through UDP gesture commands: Time Attack to game
   over (checks `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
 
