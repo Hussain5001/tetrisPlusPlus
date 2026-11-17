@@ -10,12 +10,18 @@ window and needs UDP port 5005 to be free (close the game first):
 CI runs it on Linux with a virtual display (xvfb-run).
 
 What it covers:
-  1. boot screen -> main menu -> Time Attack -> countdown -> hard drops until
-     game over -> the result is saved in scores.json (last run + top 5)
-  2. game over menu -> main menu -> Zen setup -> change a setting (saved in
+  1. boot screen -> main menu -> hand control on: the game starts the camera
+     script (a stand-in, tests/fake_sidecar.py, with no camera) and answers
+     it -> hand control off: the script is told to close; both are saved in
+     profile.json
+  2. Time Attack -> countdown -> hard drops until game over -> the result is
+     saved in scores.json (last run + top 5)
+  3. game over menu -> main menu -> Zen setup -> change a setting (saved in
      profile.json) -> start Zen -> pause -> "save & quit" writes a save file
      and the game exits cleanly
-  3. second run: Zen setup -> "continue saved" loads it -> pause -> quit
+  4. second run with hand control saved as on: the camera script starts with
+     the game -> Zen setup -> "continue saved" loads it -> pause -> quit: the
+     script is told to close
 """
 import json
 import os
@@ -32,8 +38,13 @@ class Game:
     def __init__(self, exe, workdir, name):
         self.log_path = os.path.join(workdir, name + ".log")
         self.log = open(self.log_path, "w")
+        # Instead of the real camera script the game starts a stand-in
+        self.sidecar_log = os.path.join(workdir, name + "_sidecar.log")
+        fake = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_sidecar.py")
+        env = dict(os.environ, TETRIS_SIDECAR_CMD=
+                   f'"{sys.executable}" "{fake}" {PORT} "{self.sidecar_log}"')
         self.proc = subprocess.Popen([exe], cwd=workdir, stdout=self.log,
-                                     stderr=subprocess.STDOUT)
+                                     stderr=subprocess.STDOUT, env=env)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def output(self):
@@ -49,6 +60,22 @@ class Game:
                 fail(f"game exited while waiting for {what}", self)
             time.sleep(0.1)
         fail(f"timed out waiting for {what}", self)
+
+    def sidecar_said(self):
+        """What the stand-in camera script wrote down, one word per line."""
+        if not os.path.exists(self.sidecar_log):
+            return []
+        with open(self.sidecar_log) as f:
+            return f.read().split()
+
+    def wait_for_sidecar(self, words, timeout, what):
+        end = time.time() + timeout
+        while time.time() < end:
+            if self.sidecar_said() == words:
+                return
+            time.sleep(0.1)
+        fail(f"timed out waiting for {what}; the camera script wrote "
+             f"{self.sidecar_said()}, expected {words}", self)
 
     def send(self, *commands, gap=0.25):
         for c in commands:
@@ -99,7 +126,25 @@ def main():
     ok("game started and listens for gestures")
 
     game.send("C", gap=0.6)          # skip the boot screen
-    game.send("R", "C", gap=0.4)     # main menu: time attack
+
+    # ---- hand control on and off from the main menu
+    profile_path = os.path.join(workdir, "profile.json")
+    game.send("R", "R", "R", gap=0.4)   # main menu: down to "hand control: off"
+    game.send("C", gap=0.4)             # switch it on
+    game.wait_for("hand: connected", 15, "the camera script to connect")
+    game.wait_for_sidecar(["started", "answered"], 5, "the game to answer the camera script")
+    if load_json(profile_path, "profile.json").get("hand_control") is not True:
+        fail("hand control on was not saved to profile.json", game)
+    ok("hand control on: the game starts the camera script and answers it")
+    game.send("C", gap=0.4)             # switch it off again
+    game.wait_for_sidecar(["started", "answered", "quit"], 5,
+                          "the camera script to be told to close")
+    game.wait_for("hand: stopped", 5, "the game to notice the script has closed")
+    if load_json(profile_path, "profile.json").get("hand_control") is not False:
+        fail("hand control off was not saved to profile.json", game)
+    ok("hand control off: the camera script is told to close")
+
+    game.send("L", "L", "C", gap=0.4)   # main menu: back up to time attack
     time.sleep(2.2)                  # 3-2-1 countdown
     game.wait_for("game: started time attack", 5, "a game to start")
     for _ in range(60):              # hard drop until the board is full
@@ -137,9 +182,15 @@ def main():
         fail(f"save file has only {filled} filled cells after two hard drops")
     ok(f"zen save & quit wrote game_state.json ({filled} filled cells, level 5)")
 
-    # ---- run 2
+    # ---- run 2: hand control was left on, so it comes back with the game
+    profile = load_json(profile_path, "profile.json")
+    profile["hand_control"] = True
+    with open(profile_path, "w") as f:
+        json.dump(profile, f)
     game = Game(exe, workdir, "run2")
     game.wait_for("listening on udp://127.0.0.1:5005", 20, "the game to restart")
+    game.wait_for("hand: connected", 15, "the camera script to start with the game")
+    ok("hand control saved as on starts the camera script with the game")
     time.sleep(1.0)
     game.send("C", gap=0.6)          # skip boot
     game.send("C", gap=0.6)          # zen setup
@@ -151,6 +202,9 @@ def main():
     game.send("U", "C", gap=0.4)     # pause menu: up wraps to "quit"
     game.wait_exit(10, "quit")
     ok("quit from the pause menu exits cleanly")
+    game.wait_for_sidecar(["started", "answered", "quit"], 5,
+                          "the camera script to be told to close when the game quits")
+    ok("quitting the game closes the camera script")
 
     print("SMOKE TEST PASSED")
 

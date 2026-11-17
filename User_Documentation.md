@@ -21,10 +21,10 @@ The game is pretty intuitive, wherein the tetrominoes can be controlled as follo
 * Esc or P: pause
 
 The faint `[]` outline at the bottom of the board (the "ghost") shows where the block will land. A block that lands can still be slid or rotated for half a second before it locks, and rotating next to a wall or another block nudges it into place (a "wall kick").
-* M: sound on/off, F11: fullscreen
+* H: hand control on/off, M: sound on/off, F11: fullscreen
 
 ### Hands-free controls
-Start the game with `play.bat` (or `Tetris.exe --gestures`) to play with your webcam. It needs Python 3.10–3.12; the first start installs the camera packages by itself.
+Press **H** in the game (or choose *hand control* in the main menu) to play with your webcam; press **H** again to go back to the keyboard. Nothing has to be restarted, and the keyboard keeps working while hand control is on. It needs Python 3.10–3.12; the first time, the camera packages are installed by themselves.
 Point your index finger up (other fingers curled in):
 * Swipe the finger left / right: move the block one column (bringing it back doesn't count)
 * Dip the finger down and straight again, or swipe the hand down: force fall (select in menus)

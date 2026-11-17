@@ -28,11 +28,14 @@ repository is left untouched; this one adds:
    page, click the newest green run, and download **TetrisPlusPlus-windows** under *Artifacts*.
    Tagged versions also appear under *Releases*.
 2. Unzip it anywhere, for example your Desktop.
-3. Double-click **`play.bat`**. For keyboard-only play, double-click `Tetris.exe` instead.
+3. Double-click **`Tetris.exe`** and play with the keyboard.
+4. Press **H** in the game to switch hand control on. Press **H** again to switch it off and go
+   back to the keyboard; the keys work the whole time anyway.
 
 Hand control needs [Python 3.10–3.12](https://www.python.org/downloads/); tick "Add python.exe
-to PATH" when installing. On the first start, a minimised "Tetris++ hand control" window installs
-MediaPipe (a minute or two). Then the camera preview opens and the game's HAND CONTROL box turns on.
+to PATH" when installing. The first time you switch it on, a minimised "Tetris++ hand control"
+window installs MediaPipe (a minute or two). Then the camera preview opens and the game's status
+line (bottom of the screen) changes from `hand: starting` to `hand: ready`.
 
 ## Building from source
 
@@ -43,7 +46,7 @@ winget install Git.Git Kitware.CMake
 winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
 git clone --recursive https://github.com/Hussain5001/tetrisPlusPlus.git
 cd tetrisPlusPlus
-.\build.bat          # builds, then starts the game with hand control
+.\build.bat          # builds, then starts the game
 ```
 
 `build.bat` downloads raylib and nlohmann/json (git submodules) if they are missing and puts the
@@ -59,6 +62,7 @@ game in `build\Release\Tetris.exe`. Run it again after changing the code.
 | Space | hard drop |
 | Esc or P | pause (the game also pauses when its window loses focus, unless hand control is connected) |
 | Enter | select in menus |
+| H | hand control on/off (starts and closes the camera) |
 | M | sound on/off |
 | F11 | fullscreen |
 
@@ -86,18 +90,24 @@ fastest time and only counts games where you actually cleared 40 lines.
 
 ## Hands-free play (camera gestures)
 
-```powershell
-build\Release\Tetris.exe --gestures     # starts the game and the camera script
-# or start the camera script yourself while the game is open:
-gesture\run_windows.bat                 # flick mode; add --mode point for point-and-hold
-```
+**Press H in the game** (or choose *hand control* in the main menu) to switch between your hand
+and the keyboard. There is nothing to restart and no window to close:
+
+- **On**: the game starts the camera script (`gesture\run_windows.bat`) in a minimised window.
+  The status line shows `hand: starting`, then `hand: ready` once the camera preview is up.
+- **Off**: the game tells the camera script to close, and the camera and its windows go away.
+- The keyboard works the whole time, also while hand control is on.
+- The choice is remembered in `profile.json`, so hand control comes back on the next start, and
+  the camera script always closes when the game does.
 
 `run_windows.bat` needs Python 3.10–3.12. On its first start it creates a Python environment in
 `%LOCALAPPDATA%\tetrisplusplus` and installs the packages pinned in `gesture/requirements.txt`
 (MediaPipe and OpenCV); it rebuilds that environment whenever the file changes.
 The first run also downloads the MediaPipe hand model (about 8 MB) to `gesture/models/`.
-The "HAND CONTROL" box in the game turns green when the camera script is connected,
-and every recognised gesture is shown briefly over the board.
+Every recognised gesture is shown briefly over the board.
+
+You can also start the camera script yourself while the game is open, for example to try another
+mode: `gesture\run_windows.bat --mode point`. The game picks it up and H closes it.
 
 Point your **index finger up** (like showing "1"), with the other fingers curled in:
 
@@ -134,7 +144,7 @@ Tips:
   bigger ones. `--no-vertical` turns off the drop. Thresholds are in `gesture/gestures.py` (`Config`).
 - If the hand blurs for a frame or two during a quick move, the gesture still counts.
 - Good lighting and a plain background help MediaPipe the most.
-- Measuring instead of guessing: `gestureun_windows.bat --stats` prints the real frame rate,
+- Measuring instead of guessing: `gesture\run_windows.bat --stats` prints the real frame rate,
   the tracking time and how often the hand was lost. `--record clip.jsonl` saves every frame's
   hand landmarks; `py gesture/replay.py clip.jsonl --expect U=20 --set pinch_on=0.32` then runs
   the detector over exactly those movements with other settings and counts missed, extra and
@@ -152,6 +162,10 @@ The game reads the UDP socket without blocking every frame, so a gesture takes e
 the next frame after it arrives. The socket only listens on this computer (127.0.0.1). Any
 other program that sends these letters can drive the game too; `tests/smoke_test.py` does.
 
+The link goes both ways. Twice a second the camera script sends `K` ("I'm here") and the game
+answers `k`. To switch hand control off the game sends `Q` and the script closes; a script
+started by the game also closes by itself when the answers stop for five seconds.
+
 ## Tests
 
 ```powershell
@@ -167,10 +181,11 @@ py tests/smoke_test.py build/Release/Tetris.exe   # plays the real game (opens i
 - **Python**: the gesture detector with simulated hand and finger movements (flicks, point-and-hold,
   drift, jitter, blur gaps), and the camera script's main
   loop with OpenCV/MediaPipe faked out (swipes to UDP, keep-alives, position mode, sensitivity,
-  camera fallback, model download, frame timing, skipping stale frames, stats), and recording
-  and replaying a session.
-- **Smoke test**: starts the game and plays it through UDP gesture commands: Time Attack to game
-  over (checks `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
+  camera fallback, model download, frame timing, skipping stale frames, stats, closing when the
+  game says so), and recording and replaying a session.
+- **Smoke test**: starts the game and plays it through UDP gesture commands: hand control on and
+  off (with a stand-in camera script that has no camera), Time Attack to game over (checks
+  `scores.json`), a Zen setting (checks `profile.json`), save & quit and continue saved.
 
 CI runs the C++ and Python tests on every push and builds the Windows download. It also builds
 the game on Linux, only because a headless display is available there for the smoke test.

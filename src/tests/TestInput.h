@@ -20,6 +20,12 @@ class TestInput {
     menu_disabled_rows();
     menu_value_rows();
     focus_pause_rule();
+    gesture_keep_alive_answer();
+    gesture_quit();
+    hand_switch_on_and_off();
+    hand_switch_while_starting();
+    hand_switch_script_comes_and_goes();
+    background_command();
   }
 
  private:
@@ -139,6 +145,148 @@ class TestInput {
     int start = menu.handle(acts({Action::Confirm}));
     test::check(inc && dec && reset, "left/right change a setting");
     test::check(next == -1 && start == 1, "select on a setting moves to the next row");
+  }
+
+  // Polls until `done` is true (up to half a second)
+  template <typename Done>
+  static void poll_until(GestureSource& g, std::vector<Action>& out, Done done) {
+    for (int i = 0; i < 50 && !done(); i++) {
+      g.poll(out);
+      if (!done()) test::sleep_ms(10);
+    }
+  }
+
+  // The camera script sends "K" twice a second; the game answers "k" so the
+  // script knows the game is still there
+  void gesture_keep_alive_answer() {
+    GestureSource g;
+    g.open(kPort);
+    std::vector<Action> out = receive(g, "L");
+    bool script_only = g.connected() && !g.has_sidecar();  // a command alone is no sidecar
+
+    UdpProbe script;
+    script.send(kPort, "KR");
+    out.clear();
+    poll_until(g, out, [&] { return g.has_sidecar(); });
+    std::string answer = script.receive();
+    test::check(script_only, "a program that only sends commands is not the camera script");
+    test::check(g.has_sidecar() && answer == "k" && out.size() == 1 && out[0] == Action::Right,
+                "the game answers the camera script's keep-alive");
+    test::check(script.receive(50).empty(), "one answer per keep-alive");
+  }
+
+  // Switching hand control off tells the script to close
+  void gesture_quit() {
+    GestureSource g;
+    g.open(kPort);
+    bool nobody = !g.quit_sidecar();
+    UdpProbe script;
+    script.send(kPort, "K");
+    std::vector<Action> out;
+    poll_until(g, out, [&] { return g.has_sidecar(); });
+    script.receive();  // the "k"
+
+    bool sent = g.quit_sidecar();
+    std::string told = script.receive();
+    bool forgotten = !g.has_sidecar() && !g.connected();
+    test::check(nobody, "nothing to quit before a camera script shows up");
+    test::check(sent && told == "Q" && forgotten, "quit tells the camera script to close");
+
+    // It may still send for a moment: that is ignored and it is told again
+    script.send(kPort, "KLH@4");
+    out.clear();
+    for (int i = 0; i < 20; i++) {
+      g.poll(out);
+      test::sleep_ms(5);
+    }
+    std::string again = script.receive();
+    test::check(out.empty() && !g.connected() && g.target_column() == -1 && again == "Q",
+                "a camera script that was told to quit can't move anything");
+    // Somebody else can still play
+    std::vector<Action> other = receive(g, "R");
+    test::check(other.size() == 1 && other[0] == Action::Right,
+                "other programs are still heard after a quit");
+  }
+
+  typedef rules::HandSwitch::Do Do;
+
+  void hand_switch_on_and_off() {
+    rules::HandSwitch hand;
+    bool off = !hand.wanted() && hand.link(true, false, 0) == rules::HandLink::Off;
+    bool launch = hand.toggle(0, false) == Do::Launch && hand.wanted();
+    bool starting = hand.link(true, false, 10) == rules::HandLink::Starting;
+    bool waits = hand.update(10, false) == Do::Nothing && hand.wanted();
+    bool up = hand.update(20, true) == Do::Nothing &&
+              hand.link(true, true, 20) == rules::HandLink::On;
+    bool quit = hand.toggle(30, true) == Do::Quit && !hand.wanted();
+    bool off_again = hand.update(31, false) == Do::Nothing &&
+                     hand.link(true, false, 31) == rules::HandLink::Off;
+    bool relaunch = hand.toggle(40, false) == Do::Launch;
+    test::check(off && launch && starting && waits && up,
+                "hand control: switching on starts the camera script");
+    test::check(quit && off_again && relaunch,
+                "hand control: switching off stops it, and it can be started again");
+    test::check(hand.link(false, false, 0) == rules::HandLink::PortBusy,
+                "hand control: a busy port is shown");
+  }
+
+  void hand_switch_while_starting() {
+    // Switched off before the script is up: it is stopped when it arrives
+    rules::HandSwitch hand;
+    hand.toggle(0, false);
+    bool off = hand.toggle(5, false) == Do::Nothing && !hand.wanted() &&
+               hand.link(true, false, 6) == rules::HandLink::Off;
+    bool stopped = hand.update(20, true) == Do::Quit;
+    test::check(off && stopped, "hand control: switched off while starting stops the late script");
+
+    // Switched off and on again before it is up: no second script
+    rules::HandSwitch again;
+    again.toggle(0, false);
+    again.toggle(5, false);
+    bool reused = again.toggle(6, false) == Do::Nothing && again.wanted();
+    bool kept = again.update(20, true) == Do::Nothing && again.wanted();
+    test::check(reused && kept, "hand control: never starts two camera scripts");
+
+    // The script never shows up (no Python, no camera)
+    rules::HandSwitch stuck;
+    stuck.toggle(0, false);
+    bool no_answer = stuck.link(true, false, rules::kHandStartTimeout + 1) ==
+                     rules::HandLink::NoAnswer;
+    stuck.toggle(200, false);
+    bool retry = stuck.toggle(201, false) == Do::Launch;
+    rules::HandSwitch failed;
+    failed.toggle(0, false);
+    failed.launch_failed();
+    bool gave_up = !failed.wanted() && failed.link(true, false, 1) == rules::HandLink::Off;
+    test::check(no_answer && retry && gave_up,
+                "hand control: a script that doesn't start can be retried");
+  }
+
+  void hand_switch_script_comes_and_goes() {
+    // Its window was closed: hand control is off
+    rules::HandSwitch hand;
+    hand.toggle(0, false);
+    hand.update(10, true);
+    bool closed = hand.update(20, false) == Do::Nothing && !hand.wanted() &&
+                  hand.link(true, false, 20) == rules::HandLink::Off;
+    test::check(closed, "hand control: closing the camera window switches it off");
+
+    // Started by hand, not by the game: it counts as on, and H stops it
+    rules::HandSwitch manual;
+    bool adopted = manual.update(0, true) == Do::Nothing && manual.wanted();
+    bool stops = manual.toggle(5, true) == Do::Quit;
+    test::check(adopted && stops, "hand control: a script started by hand is taken over");
+  }
+
+  void background_command() {
+    std::string command = rules::background_command("\"a b/run.bat\" --flag");
+#ifdef _WIN32
+    bool ok = command ==
+              "start \"Tetris++ hand control\" /min cmd /c \"\"a b/run.bat\" --flag\"";
+#else
+    bool ok = command == "\"a b/run.bat\" --flag &";
+#endif
+    test::check(ok, "the camera script is started in the background");
   }
 
   void focus_pause_rule() {

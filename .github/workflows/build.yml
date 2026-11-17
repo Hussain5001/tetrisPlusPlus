@@ -72,7 +72,7 @@ jobs:
           Copy-Item -Recurse build/Release/assets $d
           Get-ChildItem gesture/*.py -Exclude test_*.py | Copy-Item -Destination "$d/gesture"
           Copy-Item gesture/requirements.txt, gesture/run_windows.bat "$d/gesture"
-          Copy-Item packaging/windows/play.bat, packaging/windows/README.txt $d
+          Copy-Item packaging/windows/README.txt $d
           Compress-Archive -Path $d -DestinationPath dist/TetrisPlusPlus-windows.zip
       - uses: actions/upload-artifact@v4
         with:

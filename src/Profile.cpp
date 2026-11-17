@@ -19,6 +19,7 @@ void Profile::load(const std::string& path) {
     ghost = j.value("ghost", ghost);
     crt = j.value("crt", crt);
     sound = j.value("sound", sound);
+    hand_control = j.value("hand_control", hand_control);
   } catch (const std::exception& e) {
     std::cerr << "Ignoring unreadable " << path << ": " << e.what() << std::endl;
   }
@@ -26,7 +27,8 @@ void Profile::load(const std::string& path) {
 
 bool Profile::save(const std::string& path) const {
   json j = {{"zen_level", zen_level}, {"zen_pace", zen_pace}, {"phosphor", phosphor},
-            {"ghost", ghost},         {"crt", crt},           {"sound", sound}};
+            {"ghost", ghost},         {"crt", crt},           {"sound", sound},
+            {"hand_control", hand_control}};
   std::ofstream file(path);
   if (!file.is_open()) return false;
   file << j.dump(2);
