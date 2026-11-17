@@ -1,5 +1,8 @@
 #pragma once
 #include <string>
+#include <vector>
+
+#include "input/Action.h"
 
 // Small decisions the App makes, kept free of raylib so the tests can check
 // them without a window.
@@ -108,6 +111,19 @@ class HandFollow {
  private:
   int hold_ = -1;  // the hand's column when the keys took over
 };
+
+// In menus the hand is a cursor: while it points somewhere, its pinch
+// (Rotate) and its fist (HardDrop) click the line under it. The keyboard's
+// actions, which come first (before gesture_start), stay as they are.
+inline std::vector<Action> hand_clicks(const std::vector<Action>& actions,
+                                       size_t gesture_start, bool pointer_live) {
+  std::vector<Action> out = actions;
+  if (!pointer_live) return out;
+  for (size_t i = gesture_start; i < out.size(); i++) {
+    if (out[i] == Action::Rotate || out[i] == Action::HardDrop) out[i] = Action::Click;
+  }
+  return out;
+}
 
 // Seconds the hand may be out of the camera's view before the game pauses
 const double kHandLostDelay = 1.5;

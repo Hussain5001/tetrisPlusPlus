@@ -52,6 +52,15 @@ int Menu::handle(const std::vector<Action>& actions) {
       } else {
         move_focus(dir);
       }
+    } else if (a == Action::Click) {
+      // the hand clicked the focused line: like a mouse click
+      if (value_row) {
+        changed_row = focus;
+        change = 1;
+        sound::play(Sfx::MenuMove);
+      } else {
+        chosen = focus;
+      }
     } else if (a == Action::Confirm || a == Action::HardDrop) {
       if (value_row) {
         move_focus(1);  // "ok, next" on option rows
@@ -63,9 +72,29 @@ int Menu::handle(const std::vector<Action>& actions) {
   return chosen;
 }
 
+int Menu::row_at(float px, float py, float x, float y, float width,
+                 float line_height) const {
+  // The same boxes run() highlights
+  if (px < x - 10 || px > x + width + 10) return -1;
+  float top = y - 4;
+  if (py < top) return -1;
+  int row = (int)((py - top) / line_height);
+  return row < (int)items.size() ? row : -1;
+}
+
+bool Menu::point_at(const Pointer& hand, float x, float y, float width, float line_height) {
+  int row = row_at(hand.x, hand.y, x, y, width, line_height);
+  if (row < 0 || is_disabled(row) || row == focus) return false;
+  focus = row;
+  sound::play(Sfx::MenuMove);
+  return true;
+}
+
 int Menu::run(const std::vector<Action>& actions, float x, float y, float width,
-              float line_height, float font_size) {
+              float line_height, float font_size, const Pointer* hand) {
   int count = (int)items.size();
+  // The hand picks the line first, so its click goes to the line it points at
+  if (hand && count > 0) point_at(*hand, x, y, width, line_height);
   int chosen = handle(actions);
   if (count == 0) return -1;
 

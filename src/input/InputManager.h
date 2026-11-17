@@ -17,6 +17,10 @@ class InputManager {
   // Call once per frame; returns the actions triggered this frame.
   const std::vector<Action>& poll();
 
+  // The actions poll() returned start with the keyboard's; the gesture
+  // actions start at this index
+  size_t gesture_start() const { return gesture_start_; }
+
   // True if a key did something this frame (not a gesture)
   bool keyboard_used() const { return keyboard_used_; }
 
@@ -35,6 +39,7 @@ class InputManager {
 
   std::vector<Action> actions_;
   bool keyboard_used_ = false;
+  size_t gesture_start_ = 0;
   bool keyboard_moved_ = false;
   std::vector<RepeatKey> repeat_keys_;
   GestureSource gestures_;

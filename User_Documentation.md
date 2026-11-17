@@ -29,7 +29,8 @@ Hold your open hand in front of the camera:
 * Move the hand left / right: the block goes to the column under your hand (a marker under the board shows it)
 * Pinch (thumb to index fingertip): rotate
 * Close the hand into a fist: force fall (select in menus); open it again for the next block
-* Take the hand out of the picture: the game pauses after 1.5 seconds. Bring it back and make a fist on **resume**
+* Take the hand out of the picture: the game pauses after 1.5 seconds. Bring it back, point at **resume** and make a fist
+* In the menus your hand is a cursor (a small box): point at a line and make a fist to choose it; a pinch or a fist on a setting changes it
 * The arrow keys work at the same time: a block you move with them stays there until your hand moves to another column
 
 See the README for tuning tips.

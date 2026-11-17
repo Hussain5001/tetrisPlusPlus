@@ -13,7 +13,8 @@ Modes:
     follow    (default) hold your hand open in front of the camera: the piece
               goes to the column under your hand. Pinch thumb and index
               finger to rotate, close your hand into a fist to drop. Nothing
-              depends on how fast you move.
+              depends on how fast you move. In menus the game uses the same
+              position as a cursor: point at a line, pinch or fist to click.
     flick     point your index finger up; swipe it left or right to
               move one column (bringing it back doesn't count), dip it down
               and straight again (or swipe the hand down) to drop

@@ -31,6 +31,8 @@ class TestInput {
     column_tracker();
     hand_follow_and_keys();
     hand_lost_pause();
+    menu_hand_cursor();
+    hand_clicks_in_menus();
   }
 
  private:
@@ -72,6 +74,8 @@ class TestInput {
                                 Action::HardDrop, Action::Rotate, Action::Pause,
                                 Action::Confirm, Action::Back};
     test::check(opened && g.is_open() && quiet && none.empty(), "gesture socket opens");
+    test::check(!g.inherited_by_children(),
+                "the camera script doesn't inherit the game's socket (the port frees on exit)");
     test::check(got == want, "gesture letters become actions in order");
     test::check(g.connected() && g.last_action() == Action::Back &&
                     g.seconds_since_gesture() < 1,
@@ -364,6 +368,48 @@ class TestInput {
     keys.update(6.1, false, false);
     keys.reset();  // a new game or a resume
     test::check(!keys.update(20, false, false), "a new game forgets the old hand");
+  }
+
+  // In menus the hand is a cursor: it focuses the line it points at, and a
+  // click selects a plain line or cycles a value
+  void menu_hand_cursor() {
+    ui::Menu menu({"level", "start", "saved", "back"});
+    menu.values = {"5", "", "", ""};
+    menu.disabled = {false, false, true, false};
+    // drawn at (100, 200), 300 wide, 40 per line: line i spans y 196+40i .. 236+40i
+    bool hits = menu.row_at(150, 200, 100, 200, 300, 40) == 0 &&
+                menu.row_at(150, 275, 100, 200, 300, 40) == 1 &&
+                menu.row_at(395, 355, 100, 200, 300, 40) == 3;
+    bool misses = menu.row_at(150, 190, 100, 200, 300, 40) == -1 &&
+                  menu.row_at(150, 400, 100, 200, 300, 40) == -1 &&
+                  menu.row_at(50, 220, 100, 200, 300, 40) == -1 &&
+                  menu.row_at(420, 220, 100, 200, 300, 40) == -1;
+    test::check(hits && misses, "the hand points at a menu line");
+
+    bool moved = menu.point_at({150, 250}, 100, 200, 300, 40) && menu.focus == 1;
+    bool same = !menu.point_at({160, 260}, 100, 200, 300, 40);
+    bool skips_disabled = !menu.point_at({150, 300}, 100, 200, 300, 40) && menu.focus == 1;
+    bool outside = !menu.point_at({10, 10}, 100, 200, 300, 40) && menu.focus == 1;
+    test::check(moved && same && skips_disabled && outside,
+                "the line under the hand is focused (not a disabled one)");
+
+    int chosen = menu.handle(acts({Action::Click}));
+    menu.focus = 0;
+    int on_value = menu.handle(acts({Action::Click}));
+    bool cycles = on_value == -1 && menu.changed_row == 0 && menu.change == 1 && menu.focus == 0;
+    test::check(chosen == 1 && cycles, "a hand click selects a line or changes a setting");
+  }
+
+  void hand_clicks_in_menus() {
+    // keyboard: up, space; then gestures: pinch, fist, a swipe
+    std::vector<Action> in = {Action::Rotate, Action::HardDrop, Action::Rotate, Action::HardDrop,
+                              Action::Left};
+    std::vector<Action> live = rules::hand_clicks(in, 2, true);
+    std::vector<Action> want = {Action::Rotate, Action::HardDrop, Action::Click, Action::Click,
+                                Action::Left};
+    test::check(live == want, "in menus the hand's pinch and fist click, the keys don't");
+    test::check(rules::hand_clicks(in, 2, false) == in,
+                "without a hand in view nothing turns into a click");
   }
 
   void focus_pause_rule() {

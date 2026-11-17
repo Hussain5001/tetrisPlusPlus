@@ -112,9 +112,9 @@ Hold your **open hand** in front of the camera, palm towards it:
 
 | Gesture | In game | In menus |
 |---|---|---|
-| Move the hand left / right | the piece goes to the column under your hand | |
-| Pinch (thumb to index fingertip) | rotate | move the selection up |
-| Close the hand into a fist | hard drop | select |
+| Move the hand | the piece goes to the column under your hand | point at a line (a small box shows where) |
+| Pinch (thumb to index fingertip) | rotate | change a setting, or choose the line |
+| Close the hand into a fist | hard drop | choose the line, or change a setting |
 | Take the hand out of the picture | the game pauses after 1.5 seconds | |
 
 This is **follow mode**. It needs one hand movement, up to three pinches and one fist for each
@@ -129,7 +129,7 @@ piece, and nothing depends on how fast you move:
 - The arrow keys still work. After you move a piece with them, it stays there until your hand
   moves to another column. If you carry on with the keyboard after taking your hand away, the
   game doesn't pause.
-- To continue after the pause, bring your hand back and make a fist on *resume*.
+- To continue after the pause, bring your hand back, point at *resume* and make a fist.
 
 Tuning:
 

@@ -19,7 +19,8 @@ Gestures
   Hold your open hand in front of the camera:
   move it left / right    the piece goes to the column under your hand
   pinch (thumb to tip)    rotate
-  close it into a fist    hard drop / select in menus (open it again after)
+  close it into a fist    hard drop (open it again after)
+  in menus                point at a line, make a fist to choose it
   take it away            the game pauses after a moment
   The grey box in the camera window is the zone your hand moves in; press c
   there to centre it on your hand.
