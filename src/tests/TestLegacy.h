@@ -112,14 +112,18 @@ class TestLegacy {
                 "move_down function");
   }
 
+  // The original put blocks at fixed cells (row 1, columns 2-3), which only
+  // overlap some of the random first blocks; this fills the cells the block
+  // really covers
   void zen_collision() {
     ZenMode game;
-    // Cells under the new block: a collision
-    game.game_grid.grid[1][2] = 4;
-    game.game_grid.grid[1][3] = 4;
-    test::check(game.is_collision(), "is_collision function (1)");
-    game.game_grid.grid[1][2] = 0;
-    game.game_grid.grid[1][3] = 0;
+    std::vector<Position> cells;
+    for (Position p : game.current_block.get_current_position()) {
+      if (p.row >= 0) cells.push_back(p);
+    }
+    for (Position p : cells) game.game_grid.grid[p.row][p.column] = 4;
+    test::check(!cells.empty() && game.is_collision(), "is_collision function (1)");
+    for (Position p : cells) game.game_grid.grid[p.row][p.column] = 0;
     test::check(!game.is_collision(), "is_collision function (2)");
   }
 

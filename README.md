@@ -8,7 +8,7 @@ repository is left untouched; this one adds:
   curved glass, scanlines and glow. The well is framed with `<! !>` like the 1984 original.
 - **Zen levels.** Choose a start level (speed and score multiplier) and a pace (how quickly it
   speeds up), plus quick settings, all remembered between runs.
-- **Smoother play.** Lock delay, wall kicks, a sliding block, a 3-2-1 countdown, line-clear
+- **Smoother play.** A next-piece preview, lock delay, wall kicks, a sliding block, a 3-2-1 countdown, line-clear
   sparks, a hard-drop trail and generated sound effects.
 - **High scores.** The best five results and your last run for every mode, saved to `scores.json`.
 - **Hands-free play.** A small Python program watches your webcam, recognises hand

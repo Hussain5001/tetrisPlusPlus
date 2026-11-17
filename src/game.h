@@ -23,8 +23,12 @@ public:
     // Board for the game grid
     Board game_grid;
 
-    // Function to generate a random Tetromino block
+    // Function to bring in the next block: returns next_block and takes a
+    // new one out of the bag (every 7 blocks hold each shape once)
     Tetromino random_block();
+
+    // The block that comes after the current one (shown as "next")
+    Tetromino next_block;
 
     // Function to get the list of Tetromino blocks
     std::vector<Tetromino> get_blocks();
@@ -104,6 +108,9 @@ public:
    protected:
     // List of Tetromino blocks
     std::vector<Tetromino> block_list;
+
+    // Function to take a random block out of the bag
+    Tetromino take_from_bag();
 
     // Function to check if the block is within the game grid
     bool is_within_grid();

@@ -134,6 +134,7 @@ class App {
   void draw_effects();
   void draw_countdown();
   void draw_hand_status(float x, float y, bool right_align);
+  void draw_next_block(float x, float y, float width);
   void draw_gesture_popup();
   void draw_panel(Rectangle r, const char* title);
   void draw_score_line(float x, float y, float width, const char* label,
