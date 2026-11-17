@@ -16,14 +16,13 @@ Hand control (camera)
   The game remembers the choice, and the camera closes when the game does.
 
 Gestures
-  Point your index finger up (other fingers curled in):
-  swipe finger left/right move one column (bringing it back doesn't count)
-  dip finger down and up  hard drop / select in menus
+  Hold your open hand in front of the camera:
+  move it left / right    the piece goes to the column under your hand
   pinch (thumb to tip)    rotate
-  open palm, hold still   pause / resume
-  fist or relaxed hand    nothing, rest any time
-  Press m in the camera window to switch to point-and-hold, palm or
-  position mode.
+  close it into a fist    hard drop / select in menus (open it again after)
+  take it away            the game pauses after a moment
+  The grey box in the camera window is the zone your hand moves in; press c
+  there to centre it on your hand.
 
 Keyboard
   left / right            move (hold to repeat)

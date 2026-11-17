@@ -39,6 +39,10 @@ public:
     // (used by the gesture position mode). Returns false when it can't move.
     bool step_towards_column(int column);
 
+    // Function to move the current block all the way to `column` (as far as
+    // walls and other blocks allow), so a drop lands under the player's hand
+    void move_to_column(int column);
+
     // Function to get where the current block would land (ghost piece)
     std::vector<Position> ghost_position();
 

@@ -63,20 +63,21 @@ def make_config(header, overrides=()):
 
 
 def replay(frames, detector):
-    """Feeds every frame to the detector. Returns [(time, command), ...]
-    (position targets like "@4" are left out)."""
+    """Feeds every frame to the detector. Returns [(time, command), ...]:
+    the one-letter commands. Where the hand is ("X512Y430", "@4") is sent on
+    every frame and left out."""
     out = []
     for frame in frames:
         lm = frame.get("lm")
         landmarks = [(p[0], p[1]) for p in lm] if lm else None
-        for command in detector.update(landmarks, frame["t"]):
-            if not command.startswith("@"):
+        for command in detector.update(landmarks, frame["t"], world=frame.get("world")):
+            if len(command) == 1:
                 out.append((frame["t"], command))
     return out
 
 
 def recorded_commands(frames):
-    return [c for frame in frames for c in frame.get("cmd", []) if not c.startswith("@")]
+    return [c for frame in frames for c in frame.get("cmd", []) if len(c) == 1]
 
 
 def parse_expect(text):
@@ -152,7 +153,7 @@ def main(argv=None):
         expected = parse_expect(args.expect)
     except (OSError, ValueError) as err:
         sys.exit(f"replay.py: {err}")
-    mode = args.mode or header.get("mode", "flick")
+    mode = args.mode or header.get("mode", "follow")
     detector = GestureDetector(cfg, mode)
     events = replay(frames, detector)
     print(report(header, frames, events, detector.mode, expected, args.timeline))

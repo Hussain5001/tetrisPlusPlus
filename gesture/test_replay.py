@@ -30,7 +30,7 @@ class RecordingTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.path = os.path.join(cls.tmp.name, "session.jsonl")
-        cls.messages, _, _, cls.out = run_main(SESSION, "--record", cls.path)
+        cls.messages, _, _, cls.out = run_main(SESSION, "--mode", "flick", "--record", cls.path)
         cls.header, cls.frames = replay.load(cls.path)
 
     @classmethod
@@ -79,7 +79,8 @@ class RecordingTests(unittest.TestCase):
         self.assertFalse(hasattr(cfg, "long_gone"))
 
     def test_report(self):
-        events = replay.replay(self.frames, GestureDetector(replay.make_config(self.header)))
+        events = replay.replay(self.frames,
+                               GestureDetector(replay.make_config(self.header), "flick"))
         text = replay.report(self.header, self.frames, events, "flick",
                              replay.parse_expect("L=2,H=1,U=0"), timeline=True)
         lines = text.splitlines()

@@ -61,6 +61,7 @@ def install_fakes():
 
 cv2_fake, vision_fake = install_fakes()
 import hand_control  # noqa: E402
+import test_follow  # noqa: E402
 from test_gestures import (FLICK, FPS, curl_to, fist, hold, move, open_hand,  # noqa: E402
                            pointing, rest, still, swipe, tilt)
 
@@ -228,13 +229,13 @@ class MainLoopTests(unittest.TestCase):
         messages, *_ = run_main(frames, "--mode", "palm", "--no-vertical")
         self.assertNotIn("H", messages)
 
-    def test_finger_swipes_are_the_default(self):
+    def test_finger_swipes_in_flick_mode(self):
         frames = (rest(0.5, 0.4) + swipe(0.5, 0.4) + swipe(0.4, 0.5, 0.3) + rest(0.5, 0.3)
                   + swipe(0.5, 0.6) + swipe(0.6, 0.5, 0.3) + rest(0.5, 0.3)
                   + curl_to(0, 0.6, 0.1) + curl_to(0.6, 0, 0.1) + hold(0, 0.4)
                   + still(0.5, 0.5, 1.5, fist)                      # resting: nothing
                   + still(0.5, 0.5, 1.5))                           # open palm: pause
-        messages, _, _, out = run_main(frames)
+        messages, _, _, out = run_main(frames, "--mode", "flick")
         commands = [m for m in messages if m != "K"]
         self.assertEqual(commands, ["L", "R", "H", "P"])
         self.assertIn("(flick mode)", out)
@@ -249,8 +250,8 @@ class MainLoopTests(unittest.TestCase):
     def test_finger_sensitivity(self):
         # A small ~17 degree flick: ignored normally, recognised when sensitive
         frames = hold(0, 0.4) + tilt(0, 0.3, 0.1) + hold(0.3, 0.3)
-        normal, *_ = run_main(frames)
-        sensitive, *_ = run_main(frames, "--sensitivity", "2")
+        normal, *_ = run_main(frames, "--mode", "flick")
+        sensitive, *_ = run_main(frames, "--mode", "flick", "--sensitivity", "2")
         self.assertNotIn("R", normal)
         self.assertIn("R", sensitive)
 
@@ -299,7 +300,7 @@ class MainLoopTests(unittest.TestCase):
         keys = iter([ord("m")] + [-1] * 5 + [ord("q")])
         with mock.patch.object(cv2_fake, "waitKey", lambda delay: next(keys, -1)):
             _, camera, _, out = run_main(still(0.5, 0.5, 3.0), preview=True)
-        self.assertIn("Switched to point mode", out)
+        self.assertIn("Switched to flick mode", out)
         self.assertTrue(camera.frames)                        # q stopped it early
 
 
@@ -361,6 +362,67 @@ class CameraTests(unittest.TestCase):
         self.assertIn("No webcam found", str(err.exception.code))
         self.assertIn("clip.mp4", shown.getvalue())
         self.assertEqual(opened, ["clip.mp4"])
+
+
+class FollowModeTests(unittest.TestCase):
+    """Follow mode is the default: the pointer on every frame, U and H."""
+
+    SESSION = (test_follow.hold(0.4) + test_follow.hold(0.2, pinched=True) + test_follow.hold(0.3)
+               + test_follow.close_hand(0.1) + test_follow.hold(0.3, grip=1.0))
+
+    def test_pointer_rotate_and_drop_reach_the_game(self):
+        messages, _, _, out = run_main(self.SESSION)
+        sent = [m for m in messages if m != "K"]
+        self.assertEqual(len(sent), len(self.SESSION))            # something on every frame
+        self.assertTrue(all(m.startswith("X") and "Y" in m for m in sent))
+        self.assertEqual("".join(c for m in sent for c in m if c in "LRUHPC"), "UH")
+        drop = next(m for m in sent if m.endswith("H"))
+        self.assertAlmostEqual(int(drop[1:].split("Y")[0]), 500, delta=15)   # the board's middle
+        self.assertIn("(follow mode)", out)
+        self.assertIn("ROTATE", out)
+        self.assertIn("DROP", out)
+
+    def detector_of(self, *args):
+        made = []
+        real = hand_control.GestureDetector
+
+        def spy(cfg, mode):
+            made.append(real(cfg, mode))
+            return made[-1]
+
+        with mock.patch.object(hand_control, "GestureDetector", spy):
+            run_main(test_follow.hold(0.2), *args)
+        return made[0]
+
+    def test_the_picture_shape_and_reach_are_passed_on(self):
+        detector = self.detector_of()
+        self.assertAlmostEqual(detector.cfg.aspect, 640 / 360)   # what the camera delivers
+        self.assertEqual(detector.cfg.zone_width, 3.0)
+        self.assertEqual(self.detector_of("--reach", "2").cfg.zone_width, 2.0)
+
+    def test_finger_poses_come_from_the_world_landmarks(self):
+        seen = []
+        real = hand_control.GestureDetector.update
+
+        def spy(self, landmarks, t, world=None):
+            seen.append(world)
+            return real(self, landmarks, t, world=world)
+
+        with mock.patch.object(hand_control.GestureDetector, "update", spy):
+            run_main(test_follow.hold(0.2) + [None])
+        self.assertEqual(len(seen[0]), 21)
+        self.assertEqual(len(seen[0][0]), 3)
+        self.assertIsNone(seen[-1])                               # no hand, no landmarks
+
+    def test_c_centres_the_zone_on_the_hand(self):
+        frames = test_follow.hold(1.0, cx=0.3)
+        keys = iter([-1, ord("c")])
+        with mock.patch.object(cv2_fake, "waitKey", lambda delay: next(keys, -1)):
+            messages, _, _, out = run_main(frames, preview=True)
+        sent = [int(m[1:].split("Y")[0]) for m in messages if m.startswith("X")]
+        self.assertLess(sent[0], 100)                             # far left at first
+        self.assertAlmostEqual(sent[-1], 500, delta=10)           # the middle afterwards
+        self.assertIn("centred on your hand", out)
 
 
 class GameLinkTests(unittest.TestCase):
@@ -653,6 +715,12 @@ class SmallPieceTests(unittest.TestCase):
         hand_control.draw_preview(frame, pointing(0.5, 0.5, FLICK), finger, 30.0, ("RIGHT", 0))
         finger.debug["pointing"] = False
         hand_control.draw_preview(frame, None, finger, 30.0, None)
+        follow = hand_control.GestureDetector()
+        hand_control.draw_preview(frame, None, follow, 30.0, None)       # before any hand
+        for i, lm in enumerate(test_follow.hold(0.2) + test_follow.hold(0.2, grip=1.0)):
+            follow.update(lm, i / FPS)
+        self.assertTrue(follow.debug["fist"])
+        hand_control.draw_preview(frame, test_follow.hand(0.5, 0.5), follow, 30.0, ("DROP", 0))
 
 
 if __name__ == "__main__":

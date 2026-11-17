@@ -132,6 +132,21 @@ void GestureSource::poll(std::vector<Action>& out) {
         }
         continue;
       }
+      if (buf[i] == 'X' || buf[i] == 'Y') {
+        float& axis = buf[i] == 'X' ? pointer_x_ : pointer_y_;
+        int value = 0;
+        bool has_digit = false;
+        while (i + 1 < n && buf[i + 1] >= '0' && buf[i + 1] <= '9') {
+          if (value < 100000) value = value * 10 + (buf[i + 1] - '0');
+          i++;
+          has_digit = true;
+        }
+        if (has_digit) {
+          axis = (value > 999 ? 999 : value) / 999.0f;
+          last_pointer_ = last_packet_;
+        }
+        continue;
+      }
       Action a;
       switch (buf[i]) {
         case 'L': a = Action::Left; break;
@@ -170,6 +185,7 @@ bool GestureSource::quit_sidecar() {
   peer_len_ = 0;
   last_packet_ = -1e9;
   last_target_ = -1e9;
+  last_pointer_ = -1e9;
   return sent;
 }
 
@@ -191,6 +207,8 @@ bool GestureSource::has_sidecar() const {
 int GestureSource::target_column() const {
   return now() - last_target_ < 0.3 ? target_column_ : -1;
 }
+
+bool GestureSource::pointer_live() const { return now() - last_pointer_ < 0.3; }
 
 double GestureSource::seconds_since_gesture() const {
   return now() - last_gesture_;

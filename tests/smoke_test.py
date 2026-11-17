@@ -17,8 +17,10 @@ What it covers:
   2. Time Attack -> countdown -> hard drops until game over -> the result is
      saved in scores.json (last run + top 5)
   3. game over menu -> main menu -> Zen setup -> change a setting (saved in
-     profile.json) -> start Zen -> pause -> "save & quit" writes a save file
-     and the game exits cleanly
+     profile.json) -> start Zen -> play by hand: a drop lands in the column
+     under the hand, at the left and the right wall -> the hand leaves: the
+     game pauses by itself -> "save & quit" writes a save file and the game
+     exits cleanly
   4. second run with hand control saved as on: the camera script starts with
      the game -> Zen setup -> "continue saved" loads it -> pause -> quit: the
      script is told to close
@@ -170,17 +172,30 @@ def main():
 
     game.send("D", "C", gap=0.4)     # down to "start", start
     time.sleep(2.2)                  # countdown
-    game.send("H", "H", gap=0.4)
-    game.send("P", gap=0.6)          # open palm = pause
+    # Follow mode: the hand is over the left edge and closes (a drop). The
+    # block is still in the middle; it must land at the left wall.
+    game.send("X020Y500H", gap=0.4)
+    # Then the hand moves to the right edge and drops again
+    for _ in range(4):
+        game.send("X980Y500", gap=0.1)
+    game.send("X980Y500H", gap=0.3)
+    # The hand leaves the picture: the game pauses by itself
+    game.wait_for("game: paused", 4, "the game to pause when the hand has gone")
+    ok("the game pauses when the hand leaves the camera's view")
     game.send("D", "H", gap=0.4)     # pause menu: save & quit (a drop selects)
     game.wait_exit(10, "save & quit")
     save = load_json(os.path.join(workdir, "game_state.json"), "game_state.json")
     if save.get("level") != 5 or save.get("lines_per_level") != 5 or "game_grid" not in save:
         fail(f"unexpected save file: {save}")
-    filled = sum(1 for row in save["game_grid"] for cell in row if cell)
-    if filled < 8:
-        fail(f"save file has only {filled} filled cells after two hard drops")
-    ok(f"zen save & quit wrote game_state.json ({filled} filled cells, level 5)")
+    grid = save["game_grid"]
+    filled = sum(1 for row in grid for cell in row if cell)
+    if filled != 8:
+        fail(f"save file has {filled} filled cells after two hard drops, expected 8")
+    columns = sorted({c for row in grid for c, cell in enumerate(row) if cell})
+    if columns[0] != 0 or columns[-1] != 9 or any(3 < c < 6 for c in columns):
+        fail(f"the two drops by hand should be at the walls, but filled columns are {columns}")
+    ok(f"drops by hand land under the hand (columns {columns}); zen save & quit wrote "
+       f"game_state.json at level 5")
 
     # ---- run 2: hand control was left on, so it comes back with the game
     profile = load_json(profile_path, "profile.json")
