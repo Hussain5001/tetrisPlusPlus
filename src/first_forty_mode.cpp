@@ -1,16 +1,10 @@
 #include "first_forty_mode.h"
-#include <iostream>
 
 FirstFortyMode::FirstFortyMode():TimeDependentMode(){}
 
 //Function to check if the game is finished! (Total lines cleared are above 40)
 bool FirstFortyMode::is_game_finished() {
-    if(total_lines_cleared>=40){
-        return true;
-        std::cout<<"Game Over"<<std::endl;
-    }else{
-        return false;
-    }
+    return total_lines_cleared>=40;
 }
 
 //Function to return the score in elapsed seconds
@@ -32,7 +26,6 @@ void FirstFortyMode::block_attach() {
   if(is_collision()){
     game_over=true;
     game_end();
-    std::cout<<"Game Over"<<std::endl;
   }
   lines_cleared = game_grid.row_clearance();
   total_lines_cleared += lines_cleared;

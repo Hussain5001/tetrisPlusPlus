@@ -1,2 +1,6 @@
-mediapipe>=0.10.14
-opencv-python>=4.8
+# Pinned to the versions the game is tested with. MediaPipe needs
+# opencv-contrib-python; don't add opencv-python as well, both install the
+# same "cv2" package on top of each other. After changing this file,
+# run_windows.bat rebuilds its Python environment on the next start.
+mediapipe==1.0.1
+opencv-contrib-python==5.0.0.93

@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
 
 #include "Color.h"
@@ -33,15 +32,6 @@ const Pace kPaces[] = {{"chill", 10}, {"steady", 8}, {"rising", 5}, {"brutal", 3
 const double kTimeAttackLength = 120.0;
 const int kFortyLineGoal = 40;
 const float kCountdown = 1.6f;
-
-// True when running under Windows Subsystem for Linux
-bool running_in_wsl() {
-  std::ifstream version("/proc/version");
-  std::string text;
-  std::getline(version, text);
-  for (char& c : text) c = (char)std::tolower((unsigned char)c);
-  return text.find("microsoft") != std::string::npos;
-}
 
 std::string format_time(double seconds) {
   if (seconds < 0) seconds = 0;
@@ -104,9 +94,7 @@ void App::run_menu() {
     break;
   }
 
-  in_wsl = running_in_wsl();
-  if (in_wsl && launch_gesture_sidecar) gesture_bind_any = true;
-  input.reset(new InputManager(gesture_bind_any));
+  input.reset(new InputManager());
   if (launch_gesture_sidecar) start_sidecar();
 
   main_menu = ui::Menu({"zen", "time attack", "first 40 lines", "quit"});
@@ -446,7 +434,8 @@ void App::start_game(int new_mode, bool load_saved) {
     ZenMode* zen;
     if (load_saved) {
       zen = new ZenMode();
-      zen->load_game_state();
+      bool loaded = zen->load_game_state();
+      std::cout << (loaded ? "game: save loaded" : "game: no save to load") << std::endl;
     } else {
       ZenSettings settings;
       settings.start_level = profile.zen_level;
@@ -478,6 +467,8 @@ void App::start_game(int new_mode, bool load_saved) {
   }
   over_menu.focus = 0;
   scene = Scene::Playing;
+  // One line per game event on the console; tests/smoke_test.py waits for these
+  std::cout << "game: started " << kModeNames[mode] << std::endl;
   begin_countdown();
 }
 
@@ -622,6 +613,7 @@ void App::end_game() {
   sound::play(last_rank == 1 ? Sfx::Tetris : Sfx::GameOver);
   over_menu.focus = 0;
   scene = Scene::GameOver;
+  std::cout << "game: over" << std::endl;
 }
 
 std::string App::game_over_title() {
@@ -814,7 +806,7 @@ void App::draw_hand_status(float x, float y, bool right_align) {
   if (!g.is_open()) {
     label = "hand: port busy";
   } else if (!live) {
-    label = in_wsl ? "hand: start it on windows" : "hand: off";
+    label = "hand: off";
   } else if (g.target_column() >= 0 && g.seconds_since_gesture() > 0.5) {
     label = "hand: following";
   } else if (g.seconds_since_gesture() < 2) {
@@ -944,64 +936,26 @@ void App::draw_panel(Rectangle r, const char* title) {
 
 // ------------------------------------------------------------------ sidecar
 
-// Runs a shell command and returns the first line it prints
-static std::string first_line_of(const char* command) {
-  std::string line;
-#ifndef _WIN32
-  if (FILE* pipe = popen(command, "r")) {
-    char buf[256];
-    if (fgets(buf, sizeof(buf), pipe)) line = buf;
-    pclose(pipe);
-  }
-#endif
-  while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
-  return line;
-}
-
+// Starts the camera script in its own minimised window. Hand control is a
+// Windows feature; other systems only build the game for the CI tests.
 void App::start_sidecar() {
-  if (in_wsl) {
-    // WSL2 has no access to the webcam, so start the camera script on
-    // Windows through WSL interop. With mirrored networking Windows reaches
-    // us on localhost, otherwise it needs this WSL machine's address.
-    std::string bat = std::string(GetApplicationDirectory()) + "../gesture/run_windows.bat";
-    if (!FileExists(bat.c_str())) bat = "gesture/run_windows.bat";
-    std::string win_path = first_line_of(("wslpath -w \"" + bat + "\" 2>/dev/null").c_str());
-    std::string mode = first_line_of("wslinfo --networking-mode 2>/dev/null");
-    std::string host = "127.0.0.1";
-    if (mode != "mirrored") {
-      std::string ips = first_line_of("hostname -I 2>/dev/null");
-      host = ips.substr(0, ips.find(' '));
-    }
-    if (win_path.empty() || host.empty()) {
-      std::cout << "\nRunning in WSL: start gesture\\run_windows.bat on Windows "
-                   "(see README.md, \"Playing from WSL\")." << std::endl;
-      return;
-    }
-    std::string cmd = "cmd.exe /c \"" + win_path + "\" --host " + host + " &";
-    std::cout << "Running in WSL: starting hand tracking on Windows (sending to "
-              << host << "). The first start installs Python packages." << std::endl;
-    if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;
-    return;
-  }
+#ifdef _WIN32
   // The gesture folder sits next to the executable in the Windows zip, and
   // one or two levels up in a build folder (build/ or build/Release/)
   std::string exe_dir = GetApplicationDirectory();
   std::string dirs[] = {exe_dir + "gesture/", exe_dir + "../gesture/",
                         exe_dir + "../../gesture/", "gesture/"};
   for (const std::string& dir : dirs) {
-#ifdef _WIN32
     // run_windows.bat sets up Python + MediaPipe on first use
     std::string bat = dir + "run_windows.bat";
     if (!FileExists(bat.c_str())) continue;
     std::string cmd = "start \"Tetris++ hand control\" /min cmd /c \"" + bat + "\"";
-#else
-    std::string script = dir + "hand_control.py";
-    if (!FileExists(script.c_str())) continue;
-    std::string cmd = "python3 \"" + script + "\" &";
-#endif
     std::cout << "Starting gesture sidecar: " << cmd << std::endl;
     if (std::system(cmd.c_str()) != 0) std::cerr << "Failed to start sidecar" << std::endl;
     return;
   }
-  std::cerr << "Could not find gesture/hand_control.py" << std::endl;
+  std::cerr << "Could not find gesture/run_windows.bat" << std::endl;
+#else
+  std::cerr << "Hand control is only available on Windows" << std::endl;
+#endif
 }

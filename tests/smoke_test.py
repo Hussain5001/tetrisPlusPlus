@@ -2,10 +2,12 @@
 """End-to-end smoke test for Tetris++.
 
 Starts the real game, plays it by sending gesture commands over UDP (the same
-way the camera script does), and checks what it saved. Needs a display; on a
-server run it with a virtual one:
+way the camera script does), and checks what it saved. It opens the real game
+window and needs UDP port 5005 to be free (close the game first):
 
-    xvfb-run -a python3 tests/smoke_test.py build/Tetris
+    py tests/smoke_test.py build/Release/Tetris.exe
+
+CI runs it on Linux with a virtual display (xvfb-run).
 
 What it covers:
   1. boot screen -> main menu -> Time Attack -> countdown -> hard drops until
@@ -99,12 +101,12 @@ def main():
     game.send("C", gap=0.6)          # skip the boot screen
     game.send("R", "C", gap=0.4)     # main menu: time attack
     time.sleep(2.2)                  # 3-2-1 countdown
-    game.wait_for("constructed grid", 5, "a game to start")
+    game.wait_for("game: started time attack", 5, "a game to start")
     for _ in range(60):              # hard drop until the board is full
-        if "Game Over" in game.output():
+        if "game: over" in game.output():
             break
         game.send("H", gap=0.35)
-    game.wait_for("Game Over", 5, "game over")
+    game.wait_for("game: over", 5, "game over")
     time.sleep(1.0)
     scores = load_json(os.path.join(workdir, "scores.json"), "scores.json")
     last = scores.get("time_attack", {}).get("last")
@@ -142,7 +144,7 @@ def main():
     game.send("C", gap=0.6)          # skip boot
     game.send("C", gap=0.6)          # zen setup
     game.send("D", "C", gap=0.4)     # "continue saved"
-    game.wait_for("Reading from file", 5, "the saved game to load")
+    game.wait_for("game: save loaded", 5, "the saved game to load")
     ok("continue saved loads the game")
     time.sleep(2.0)
     game.send("C", gap=0.6)          # pause

@@ -1,3 +1,6 @@
+> **Archived.** This is the plan of the original 2023 university project (TetrisX), kept for
+> history. It does not describe Tetris++; see [README.md](../README.md) for the current game.
+
 # Project Title : Tetris (Group 44) (Project Plan)
 
 ## **Use Case Description**

@@ -4,7 +4,7 @@ OpenCV and MediaPipe are replaced by small fakes, so these tests need
 neither the packages nor a camera. They feed scripted hand positions through
 the real main loop and check the UDP messages that come out.
 
-Run with:  python3 -m unittest gesture/test_hand_control.py   (from the repo root)
+Run with:  py -m unittest gesture/test_hand_control.py   (from the repo root)
 """
 import io
 import os
@@ -268,41 +268,21 @@ class CameraTests(unittest.TestCase):
         self.assertEqual(opened, [1])
 
     def test_help_when_no_camera(self):
-        Cam, _ = self.camera_factory(set())
+        Cam, opened = self.camera_factory(set())
         cv2_fake.VideoCapture = Cam
-        with mock.patch.object(hand_control, "running_in_wsl", lambda: False), \
-                redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as err:
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as err:
             hand_control.open_camera(0, 640, 360)
         self.assertIn("No webcam found", str(err.exception.code))
-        self.assertNotIn("WSL", str(err.exception.code))
+        self.assertEqual(opened, [0, 1, 2, 3])
 
-    def test_wsl_help_when_no_camera(self):
-        Cam, _ = self.camera_factory(set())
+    def test_missing_video_file_gets_help(self):
+        Cam, opened = self.camera_factory(set())
         cv2_fake.VideoCapture = Cam
-        with mock.patch.object(hand_control, "running_in_wsl", lambda: True), \
-                redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as err:
-            hand_control.open_camera(0, 640, 360)
-        message = str(err.exception.code)
-        self.assertIn("networkingMode=mirrored", message)
-        self.assertIn("--gesture-bind 0.0.0.0", message)
-        self.assertIn("run_windows.bat", message)
-
-    def test_missing_video_file_gets_plain_help(self):
-        Cam, _ = self.camera_factory(set())
-        cv2_fake.VideoCapture = Cam
-        with mock.patch.object(hand_control, "running_in_wsl", lambda: True), \
-                redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as err:
+        with redirect_stderr(io.StringIO()) as shown, self.assertRaises(SystemExit) as err:
             hand_control.open_camera("clip.mp4", 640, 360)
-        self.assertNotIn("mirrored", str(err.exception.code))
-
-    def test_wsl_detection(self):
-        with mock.patch("builtins.open", mock.mock_open(
-                read_data="Linux version 6.6.87.2-microsoft-standard-WSL2")):
-            self.assertTrue(hand_control.running_in_wsl())
-        with mock.patch("builtins.open", mock.mock_open(read_data="Linux version 6.8.0-generic")):
-            self.assertFalse(hand_control.running_in_wsl())
-        with mock.patch("builtins.open", side_effect=OSError):
-            self.assertFalse(hand_control.running_in_wsl())
+        self.assertIn("No webcam found", str(err.exception.code))
+        self.assertIn("clip.mp4", shown.getvalue())
+        self.assertEqual(opened, ["clip.mp4"])
 
 
 class ModelTests(unittest.TestCase):

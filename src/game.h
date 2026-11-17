@@ -29,15 +29,6 @@ public:
     // Function to get the list of Tetromino blocks
     std::vector<Tetromino> get_blocks();
 
-    // Function to display the game
-    void display();
-
-    // Function to display the game with the board's top-left corner at (x, y)
-    void display(int x, int y);
-
-    // Function to handle keyboard input directly (kept for compatibility)
-    void handle_input();
-
     // Function to apply one player action (keyboard, mouse or gesture)
     void apply(Action action);
 

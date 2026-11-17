@@ -4,17 +4,12 @@
 
 #include <algorithm>
 
-#include <iostream>
-#include <random>
-
 // Constructor for the Game class
 Game::Game() {
   lines_cleared=0;
   fall_start = 0;
   drop_interval=0.48;
   score=0;
-  // Display the initial state of the game grid
-  game_grid.show_state();
   // Initialize the block list
   block_list = get_blocks();
   // Set the current block to a random Tetromino
@@ -47,32 +42,6 @@ Tetromino Game::random_block() {
 std::vector<Tetromino> Game::get_blocks(){
     return {BlockI(), BlockJ(), BlockL(), BlockO(),
                 BlockS(), BlockT(), BlockZ()};
-}
-// Function to display the game grid and the current block
-void Game::display() {
-  display(0, 0);
-}
-
-// Function to display the grid, the ghost piece and the current block at (x, y)
-void Game::display(int x, int y) {
-  game_grid.draw(x, y);
-  if (!game_over) {
-    Tetromino ghost = current_block;
-    std::vector<Position> landing = ghost_position();
-    ghost.move(landing[0].row - current_block.get_current_position()[0].row, 0);
-    ghost.draw_ghost(x, y);
-  }
-  current_block.draw(x, y);
-}
-// Function to handle user input
-void Game::handle_input() {
-  switch (GetKeyPressed()) {
-    case KEY_LEFT: apply(Action::Left); break;
-    case KEY_RIGHT: apply(Action::Right); break;
-    case KEY_DOWN: apply(Action::SoftDrop); break;
-    case KEY_UP: apply(Action::Rotate); break;
-    case KEY_SPACE: apply(Action::HardDrop); break;
-  }
 }
 
 // Function to apply a single player action to the game

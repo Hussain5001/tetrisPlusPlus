@@ -1,21 +1,19 @@
 .vscode/
-build/
-
+.idea/
 .DS_Store
-CMakeCache.txt
-
-# vendor/
 
 # build output
 build*/
-bui/
 cmake-build-*/
+CMakeCache.txt
 *.out
 __pycache__/
 .venv/
 gesture/models/
 
-# player data
+# player data, written next to where the game is started
 scores.json
 profile.json
+game_state.json
 test_scores.json
+tetris_test_*
