@@ -353,7 +353,7 @@ def poll_game(sock):
 def draw_preview(frame, landmarks, detector, fps, flash):
     h, w = frame.shape[:2]
     if landmarks:
-        pts = [(int(x * w), int(y * h)) for x, y in landmarks]
+        pts = [(int(p[0] * w), int(p[1] * h)) for p in landmarks]
         for a, b in HAND_CONNECTIONS:
             cv2.line(frame, pts[a], pts[b], (230, 200, 110), 2)
         for p in pts:
@@ -396,7 +396,7 @@ def draw_follow(frame, detector):
         dot = (x0 + int(info["u"] * (x1 - x0)), y0 + int(info["v"] * (y1 - y0)))
         cv2.circle(frame, dot, 9, (110, 200, 255) if info["fist"] else (255, 255, 255), -1)
     cv2.putText(frame, f"fist {info['grip']:.2f} (drops at {cfg.fist_on:.2f})   "
-                       f"pinch {min(info['pinch'], 9):.2f} (rotates under {cfg.pinch_on:.2f})",
+                       f"pinch {min(info['pinch'], 9):.2f} (rotates under {cfg.pinch_close:.2f})",
                 (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
@@ -524,7 +524,7 @@ def main():
             tracking = time.perf_counter() - tracking_start
 
             hand = extract_hand(result)
-            landmarks = [(x, y) for x, y, _ in hand["image"]] if hand else None
+            landmarks = hand["image"] if hand else None  # (x, y, depth)
 
             commands = detector.update(landmarks, now, world=hand["world"] if hand else None)
             if commands:

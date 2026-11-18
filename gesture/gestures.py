@@ -109,6 +109,11 @@ class Config:
     fist_min_curl: float = 0.45        # every finger must be curled at least this far
     fist_frames: int = 2               # frames the fist must hold before it drops
     pinch_open_curl: float = 0.5       # a pinch needs middle and ring straighter than this
+    # Thumb-index gap in the picture (hand sizes, with MediaPipe's depth).
+    # Measured on a real camera: 21 pinches came down to 0.08-0.19 and the
+    # hand opened to at least 0.42 between quick pinches; an open hand is 0.6+.
+    pinch_close: float = 0.25          # closer than this rotates
+    pinch_release: float = 0.35        # further than this, the next pinch can rotate
 
 
 @dataclass
@@ -174,7 +179,10 @@ def finger_curl(points, finger):
 
 
 def pinch_gap(points):
-    """Distance between the thumb tip and the index fingertip, in hand sizes."""
+    """Distance between the thumb tip and the index fingertip, in hand sizes.
+    Follow mode measures it on the picture landmarks: MediaPipe's world
+    landmarks place the thumb too roughly in depth to see a pinch (on a real
+    camera they never came closer than 0.4 while the picture showed 0.1)."""
     size = max(math.dist(points[WRIST], points[MIDDLE_MCP]), 1e-9)
     return math.dist(points[THUMB_TIP], points[INDEX_TIP]) / size
 
@@ -257,8 +265,9 @@ class GestureDetector:
         self.follow.trail.clear()
 
     def update(self, landmarks, t: float, world=None) -> list[str]:
-        """landmarks: 21 (x, y) pairs in 0..1 image coordinates (already
-        mirrored so moving your hand right moves x up), or None if no hand.
+        """landmarks: 21 (x, y) or (x, y, depth) points in 0..1 image
+        coordinates (already mirrored so moving your hand right moves x up),
+        or None if no hand. Follow mode uses the depth for the pinch.
         t: timestamp in seconds. world: the same 21 points as (x, y, z) in
         metres if the tracker gives them (follow mode reads the finger poses
         from these; without them it uses the picture). Returns a list of
@@ -271,6 +280,8 @@ class GestureDetector:
                 self.reset()
             return []
         self.state.missed_frames = 0
+        if self.mode != "follow":
+            landmarks = [(p[0], p[1]) for p in landmarks]  # the older modes use x, y only
         if self.mode == "follow":
             out = self._follow(landmarks, world, t)
             for c in out:
@@ -321,8 +332,12 @@ class GestureDetector:
         column), a pinch rotates and closing the hand drops. Returns the
         pointer first, so a drop in the same message lands where it shows."""
         cfg, st = self.cfg, self.follow
-        picture = [(x * cfg.aspect, y) for x, y in landmarks]  # same unit both ways
-        pose = world or picture
+        # Picture landmarks in the same unit both ways; MediaPipe's depth (z,
+        # in picture widths) is kept when it is there
+        picture = [(p[0] * cfg.aspect, p[1]) for p in landmarks]
+        depth = [(p[0] * cfg.aspect, p[1], (p[2] if len(p) > 2 else 0.0) * cfg.aspect)
+                 for p in landmarks]
+        pose = world or picture  # finger curls: the 3D hand is best for these
         curls = {name: finger_curl(pose, name) for name in FINGERS}
         grip = sum(curls.values()) / len(curls)
 
@@ -352,14 +367,16 @@ class GestureDetector:
 
         # Pinch = rotate, on contact. It needs an otherwise open hand, so the
         # thumb meeting the index finger inside a closing fist doesn't count.
+        # Measured with depth, so a thumb that only passes in front of the
+        # index finger doesn't count either.
         out = []
-        gap = pinch_gap(pose)
+        gap = pinch_gap(depth)
         hand_open = (curls["middle"] < cfg.pinch_open_curl
                      and curls["ring"] < cfg.pinch_open_curl)
         if st.pinching:
-            if gap > cfg.pinch_off:
+            if gap > cfg.pinch_release:
                 st.pinching = False
-        elif gap < cfg.pinch_on and hand_open and not st.fist:
+        elif gap < cfg.pinch_close and hand_open and not st.fist:
             st.pinching = True
             out.append("U")
 

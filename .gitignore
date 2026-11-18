@@ -10,6 +10,8 @@ CMakeCache.txt
 __pycache__/
 .venv/
 gesture/models/
+# your own recordings (hand_control.py --record); test fixtures go in gesture/recordings/
+gesture/*.jsonl
 
 # player data, written next to where the game is started
 scores.json
