@@ -6,7 +6,7 @@ movements as often as you like:
 
     py gesture/hand_control.py --record pinches.jsonl     (do 20 pinches, press q)
     py gesture/replay.py pinches.jsonl --expect U=20
-    py gesture/replay.py pinches.jsonl --expect U=20 --set pinch_on=0.32
+    py gesture/replay.py pinches.jsonl --expect U=20 --set pinch_close=0.3
 
 --expect says what you really did, so the report can count missed and extra
 commands; every command you did not list counts as false. --set changes one
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import gzip
 import json
 import os
 import sys
@@ -29,9 +30,11 @@ ORDER = "LRUHDPCB"  # the order commands are listed in
 
 
 def load(path):
-    """Reads a recording. Returns (header, frames); each frame is a dict with
+    """Reads a recording (.jsonl, or .jsonl.gz like the test fixtures in
+    gesture/recordings). Returns (header, frames); each frame is a dict with
     "t", "lm" (21 [x, y, z] or None when no hand was seen) and "cmd"."""
-    with open(path, encoding="utf-8") as f:
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8") as f:
         lines = [line for line in f if line.strip()]
     if not lines:
         raise ValueError(f"{path} is empty")
@@ -69,7 +72,7 @@ def replay(frames, detector):
     out = []
     for frame in frames:
         lm = frame.get("lm")
-        landmarks = [(p[0], p[1]) for p in lm] if lm else None
+        landmarks = [tuple(p) for p in lm] if lm else None
         for command in detector.update(landmarks, frame["t"], world=frame.get("world")):
             if len(command) == 1:
                 out.append((frame["t"], command))
@@ -141,7 +144,7 @@ def main(argv=None):
     ap.add_argument("--mode", choices=list(MODES) + list(MODE_ALIASES),
                     help="detector mode (default: the recorded one)")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
-                    help="change a Config value, e.g. --set pinch_on=0.32")
+                    help="change a Config value, e.g. --set pinch_close=0.3")
     ap.add_argument("--expect", metavar="U=20,H=0",
                     help="what you really did, to count missed and extra commands")
     ap.add_argument("--timeline", action="store_true", help="list every command")

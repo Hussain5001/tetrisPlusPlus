@@ -141,9 +141,11 @@ Tuning:
   `gesture/gestures.py` (`Config`).
 - Measuring instead of guessing: `gesture\run_windows.bat --stats` prints the real frame rate,
   the tracking time and how often the hand was lost. `--record clip.jsonl` saves every frame's
-  hand landmarks; `py gesture/replay.py clip.jsonl --expect U=20 --set pinch_on=0.32` then runs
+  hand landmarks; `py gesture/replay.py clip.jsonl --expect U=20 --set pinch_close=0.3` then runs
   the detector over exactly those movements with other settings and counts missed, extra and
-  false commands (`--help` explains the options).
+  false commands (`--help` explains the options). Send a recording of a gesture that misfires
+  and the thresholds can be tuned on exactly those movements; tuned clips are kept in
+  `gesture/recordings/` as tests.
 - Good lighting and a plain background help MediaPipe the most.
 
 #### Older modes

@@ -311,6 +311,63 @@ class FistTests(unittest.TestCase):
         self.assertEqual((out[0][0], out[-1]), ("X", "H"))
 
 
+class PinchDepthTests(unittest.TestCase):
+    """The pinch is measured on the picture landmarks, with MediaPipe's depth."""
+
+    @staticmethod
+    def with_depth(points, thumb_depth=0.0):
+        """Picture landmarks with a depth value; the thumb tip can be put
+        nearer the camera than the rest of the hand."""
+        out = [(x, y, 0.0) for x, y in points]
+        out[4] = (out[4][0], out[4][1], thumb_depth)
+        return out
+
+    def test_a_pinch_counts_even_when_the_3d_hand_misses_it(self):
+        # On a real camera the world landmarks kept the thumb 0.4+ hand sizes
+        # from the index tip while the picture showed them touching
+        world_open = [(x * 0.09, y * 0.09, 0.0) for x, y in shape()]
+        d = GestureDetector()
+        out = []
+        for i in range(10):
+            out += d.update(self.with_depth(hand(0.5, 0.5)), i / FPS, world=world_open)
+        for i in range(10, 20):
+            out += d.update(self.with_depth(hand(0.5, 0.5, pinched=True)), i / FPS,
+                            world=world_open)
+        self.assertEqual([c for c in out if len(c) == 1], ["U"])
+
+    def test_a_thumb_passing_in_front_of_the_finger_is_not_a_pinch(self):
+        # touching in the picture, but the thumb is well in front (nearer the camera)
+        frames = [self.with_depth(hand(0.5, 0.5)) for _ in range(10)] +                  [self.with_depth(hand(0.5, 0.5, pinched=True), thumb_depth=-0.06)
+                  for _ in range(10)]
+        self.assertEqual(play(GestureDetector(), frames)[0], [])
+
+    def test_quick_pinches_that_only_half_open_in_between(self):
+        # the hand opens to 0.42 hand sizes between pinches, as on the camera
+        def gap_hand(gap):
+            pts = shape()
+            ix, iy = pts[8]
+            pts[4] = (ix - gap, iy)  # the thumb tip `gap` hand sizes from the index tip
+            return [(0.5 + x * SIZE / Config().aspect, 0.5 + y * SIZE) for x, y in pts]
+
+        frames = [gap_hand(0.8)] * 10
+        for _ in range(3):
+            frames += [gap_hand(0.1)] * 4 + [gap_hand(0.42)] * 4
+        self.assertEqual(play(GestureDetector(), frames)[0], ["U", "U", "U"])
+
+
+class RecordedPinchTests(unittest.TestCase):
+    """21 pinches recorded on a real webcam (gesture/recordings)."""
+
+    PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "recordings",
+                        "pinches_21.jsonl.gz")
+
+    def test_every_pinch_rotates_once(self):
+        import replay
+        header, frames = replay.load(self.PATH)
+        events = replay.replay(frames, GestureDetector(replay.make_config(header), "follow"))
+        self.assertEqual([c for _, c in events], ["U"] * 21)
+
+
 class WorldLandmarkTests(unittest.TestCase):
     """With MediaPipe's 3D landmarks the finger poses are read from them."""
 
